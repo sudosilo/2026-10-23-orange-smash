@@ -120,8 +120,11 @@
   .chorusText { margin-top: 8px; font-size: 12px; color: var(--ink-soft); line-height: 1.5; }
 
   .acaRow { display: flex; gap: 10px; align-items: center; margin-top: 8px; }
-  .acaBox { width: 78px; height: 78px; border-radius: 6px; background: var(--lcd-edge); flex: none; overflow: hidden; position: relative; }
-  .acaBox iframe { position: absolute; top: 0; left: 50%; width: 139px; height: 78px; transform: translateX(-50%); border: 0; pointer-events: none; }
+  .art.small { width: 52px; height: 52px; }
+  #acaSlot { position: absolute; inset: 0; overflow: hidden; }
+  #acaSlot iframe { position: absolute; top: 0; left: 50%; width: 93px; height: 52px; transform: translateX(-50%); border: 0; pointer-events: none; }
+  .artStack { display: flex; flex-direction: column; gap: 4px; align-items: center; flex: none; }
+  .artCap { font-size: 8px; letter-spacing: 1px; color: var(--lcd-dim); }
   #acaInfo { flex: 1; min-width: 0; font-size: 13px; }
   #acaInfo .rs { font-size: 10px; letter-spacing: 1px; color: var(--ink-faint); margin-top: 2px; }
   input[type=range] { accent-color: var(--ink); }
@@ -150,12 +153,14 @@
 <div class="modeRow">
   <button class="seg on" data-mode="smash">SMASH</button>
   <button class="seg" data-mode="karaoke">LIVE KARAOKE</button>
+  <button class="seg" data-mode="live">LIVE SMASH</button>
 </div>
 
 <div class="lcd mono" id="lcd">
   <div class="lcdTop"><span id="lcdLabel">NOW SMASHING</span><span id="lcdTag">NO TUNE</span></div>
   <div class="nowRow">
-    <div class="art"><svg width="28" height="28" viewBox="0 0 24 24"><path d="M12 3v10.6A4 4 0 1 0 14 17V7h4V3z" fill="#6f7d5c"/></svg><div id="tuneSlot"><div id="tunePlayer"></div></div></div>
+    <div class="artStack"><div class="art"><svg width="28" height="28" viewBox="0 0 24 24"><path d="M12 3v10.6A4 4 0 1 0 14 17V7h4V3z" fill="#6f7d5c"/></svg><div id="tuneSlot"><div id="tunePlayer"></div></div></div><span class="artCap">BEAT</span></div>
+    <div class="artStack"><div class="art small"><svg width="20" height="20" viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v7a3 3 0 0 0 3 3z" fill="#6f7d5c"/></svg><div id="acaSlot"><div id="acaPlayer"></div></div></div><span class="artCap">VOICE</span></div>
     <div class="nowText">
       <div class="title" id="title">Pick a tune</div>
       <div class="artist" id="artist">Then pick the words</div>
@@ -184,6 +189,12 @@
 <div class="transport hide" id="karaokeTransport">
   <button class="key big" id="listenBtn" aria-label="Listen"><svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v7a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-2.1A7 7 0 0 0 19 12z"/></svg></button>
 </div>
+<div class="transport hide" id="liveTransport">
+  <button class="key small" id="livePlayBtn" aria-label="Play"><svg viewBox="0 0 24 24" style="width:24px;height:24px"><path d="M7 5v14l12-7z"/></svg></button>
+  <button class="key big" id="liveListenBtn" aria-label="Listen"><svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v7a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-2.1A7 7 0 0 0 19 12z"/></svg></button>
+  <button class="key small" id="liveDropBtn" aria-label="Drop">DROP</button>
+</div>
+<div class="keyLabels mono hide" id="liveLabels"><span id="livePlayLabel">PLAY</span><span id="liveListenLabel">LISTEN</span><span>DROP</span></div>
 <div class="keyLabels mono hide" id="karaokeLabels"><span></span><span id="listenLabel">LISTEN</span><span></span></div>
 
 <div id="ack" class="mono"></div>
@@ -226,8 +237,33 @@
     <div class="toggleRow"><span>Start from</span><select class="cueSel" id="cueSel"><option value="0">0:00 top of the song</option></select></div>
     <div class="toggleRow"><span>Acapella shift</span><span class="ctl"><button class="seg" data-as="-0.1">-</button><span class="mono readout" id="asVal">+0.0 s</span><button class="seg" data-as="0.1">+</button><button class="seg" data-as="0">RST</button></span></div>
     <div class="toggleRow"><span>Acapella level</span><input type="range" id="acaVol" min="0" max="100" value="100" style="width:150px;"></div>
-    <div class="acaRow"><div class="acaBox"><div id="acaPlayer"></div></div><div id="acaInfo"><span style="color:var(--ink-faint)">Pick words and the vocal only version loads here</span></div></div>
+    <div class="acaRow"><div id="acaInfo"><span style="color:var(--ink-faint)">Pick words and the vocal only version loads here</span></div></div>
     <div id="acaResults" style="margin-top:6px;"></div>
+  </div>
+</div>
+
+<div id="livePanel" class="hide">
+  <div class="card">
+    <div class="cardTitle"><span>Live smash</span><span class="mono" id="liveState">IDLE</span></div>
+    <div class="toggleRow"><span>Auto follow songs</span><input type="checkbox" id="liveFollow" checked></div>
+    <div class="toggleRow"><span>Play the instrumental</span><input type="checkbox" id="liveInstOn" checked></div>
+    <div class="toggleRow"><span>Play the donor acapella</span><input type="checkbox" id="liveAcaOn" checked></div>
+    <div class="toggleRow"><span>Beat timing</span><span class="ctl"><button class="seg" data-ln="-50">-</button><span class="mono readout" id="lnVal">+0 ms</span><button class="seg" data-ln="50">+</button><button class="seg" data-ln="0">RST</button></span></div>
+    <div class="toggleRow"><span>Acapella shift</span><span class="ctl"><button class="seg" data-las="-0.1">-</button><span class="mono readout" id="lasVal">+0.0 s</span><button class="seg" data-las="0.1">+</button><button class="seg" data-las="0">RST</button></span></div>
+  </div>
+  <div class="card">
+    <div class="cardTitle"><span>Instrumental</span><span class="mono" id="liveInstTag">WAITING</span></div>
+    <div id="liveInstInfo" style="font-size:13px;color:var(--ink-faint)">Listen to a song and its instrumental loads here</div>
+    <div id="liveInstResults" style="margin-top:6px;"></div>
+  </div>
+  <div class="card">
+    <div class="cardTitle"><span>Donor suggestions</span><span class="mono" id="liveSugTag">SAME BPM</span></div>
+    <div id="liveSug"><div class="resultRow"><span class="rs">Suggestions show up once a song is locked</span></div></div>
+  </div>
+  <div class="card">
+    <div class="cardTitle"><span>Donor acapella</span><span class="mono" id="liveAcaTag">WAITING</span></div>
+    <div id="liveAcaInfo" style="font-size:13px;color:var(--ink-faint)">Pick a suggestion and its vocal only version loads here</div>
+    <div id="liveAcaResults" style="margin-top:6px;"></div>
   </div>
 </div>
 
@@ -366,20 +402,27 @@ let mode = 'smash';
 function setMode(m) {
   mode = m;
   document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('on', b.getAttribute('data-mode') === m));
-  const smash = m === 'smash';
-  ['smashPanel', 'smashTransport', 'smashLabels'].forEach(id => $(id).classList.toggle('hide', !smash));
-  ['karaokePanel', 'karaokeTransport', 'karaokeLabels'].forEach(id => $(id).classList.toggle('hide', smash));
+  const groups = { smash: ['smashPanel', 'smashTransport', 'smashLabels'], karaoke: ['karaokePanel', 'karaokeTransport', 'karaokeLabels'], live: ['livePanel', 'liveTransport', 'liveLabels'] };
+  Object.keys(groups).forEach(k => groups[k].forEach(id => $(id).classList.toggle('hide', k !== m)));
   clearLyrics();
-  if (smash) {
-    if (karaokeTimer) { clearTimeout(karaokeTimer); karaokeTimer = null; }
+  pauseTune();
+  if (m !== 'karaoke' && karaokeTimer) { clearTimeout(karaokeTimer); karaokeTimer = null; }
+  if (m !== 'live' && liveTimer) { clearTimeout(liveTimer); liveTimer = null; }
+  if (m === 'smash') {
     $('lcdLabel').textContent = 'NOW SMASHING';
+    loadedVideo = null;
+    if (tune) loadTune(false);
+    if (aca && acaReady) { acaLoaded = null; try { acaPlayer.cueVideoById(aca.videoId, 0); acaLoaded = aca.videoId; } catch (e) {} }
     renderSmashHeader();
     renderStats(words);
-  } else {
-    pauseTune();
+  } else if (m === 'karaoke') {
     $('lcdLabel').textContent = 'LIVE KARAOKE';
     renderKaraokeHeader();
     renderStats(live);
+  } else {
+    $('lcdLabel').textContent = 'LIVE SMASH';
+    renderLiveHeader();
+    renderStats(donor);
   }
 }
 document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => setMode(b.getAttribute('data-mode'))));
@@ -1000,8 +1043,295 @@ function karaokeTick() {
   showLyrics(live.lines, t);
 }
 
+/* ===== LIVE SMASH MODE ===== */
+let liveSong = null, liveTimer = null, liveBusy = false, liveNudgeMs = 0, liveShift = 0;
+let liveInst = null, donor = null, donorAca = null, liveDropAt = null, liveRate = 1, liveRateSet = null, liveLastSync = 0, liveWantPlay = false;
+
+function liveLyricsLine() { return donor && donor.lines.length ? donor.lines.find(l => l.text) : null; }
+function livePosNow() { return liveSong ? liveSong.offsetSeconds + (now() - liveSong.epochMs) / 1000 + liveNudgeMs / 1000 : 0; }
+function liveState(t) { $('liveState').textContent = t; }
+
+function renderLiveHeader() {
+  if (mode !== 'live') return;
+  $('title').textContent = liveSong ? liveSong.title : 'Tap listen';
+  $('artist').textContent = donor ? 'Smashing: ' + donor.title + ' / ' + donor.artist : (liveSong ? liveSong.artist : 'Hold the phone near the speaker');
+  $('lcdTag').textContent = liveSong ? (donor ? 'SMASH READY' : 'LOCKED') : 'NOT LISTENING';
+  const bits = [];
+  if (liveSong && liveSong.bpm) bits.push('LIVE ' + Math.round(liveSong.bpm));
+  if (donor && donor.bpm) bits.push('DONOR ' + Math.round(donor.bpm));
+  if (donor) bits.push('RATE ' + liveRate.toFixed(2) + 'X');
+  $('meta').textContent = bits.length ? bits.join(' / ') : '--';
+}
+function renderLiveNudges() {
+  $('lnVal').textContent = (liveNudgeMs >= 0 ? '+' : '') + liveNudgeMs + ' ms';
+  $('lasVal').textContent = (liveShift >= 0 ? '+' : '') + liveShift.toFixed(1) + ' s';
+}
+document.querySelectorAll('[data-ln]').forEach(b => b.addEventListener('click', () => {
+  const d = parseInt(b.getAttribute('data-ln'), 10);
+  liveNudgeMs = d === 0 ? 0 : liveNudgeMs + d; renderLiveNudges(); liveLastSync = 0;
+}));
+document.querySelectorAll('[data-las]').forEach(b => b.addEventListener('click', () => {
+  const d = parseFloat(b.getAttribute('data-las'));
+  liveShift = d === 0 ? 0 : Math.round((liveShift + d) * 10) / 10; renderLiveNudges(); liveLastSync = 0;
+}));
+
+async function liveIdentify() {
+  if (liveBusy || mode !== 'live') return;
+  if (!(await openMic())) return;
+  liveBusy = true;
+  if (liveTimer) { clearTimeout(liveTimer); liveTimer = null; }
+  liveState('LISTENING');
+  setLink('busy', 'LISTENING');
+  $('liveListenLabel').textContent = 'LISTENING';
+  const capturedAt = now();
+  const blob = await recordClip();
+  let data = null;
+  try {
+    const form = new FormData();
+    form.append('audio', blob, 'clip.webm');
+    form.append('capturedAt', String(capturedAt));
+    form.append('clipDurationMs', String(CLIP_MS));
+    data = await (await fetch('/api/recognize', { method: 'POST', body: form })).json();
+  } catch (e) { data = { error: 'network' }; }
+  liveBusy = false;
+  $('liveListenLabel').textContent = 'LISTEN';
+  if (!data || data.error || typeof data.offsetSeconds !== 'number') {
+    liveState(liveSong ? 'HELD' : 'NO MATCH');
+    setLink(liveSong ? 'ok' : '', liveSong ? 'LOCKED' : 'NO MATCH');
+    log('LISTEN', data && data.error ? data.error : 'no match, retrying');
+    scheduleLive(liveSong ? 30000 : 15000);
+    return;
+  }
+  const same = liveSong && normLine(liveSong.title) === normLine(data.title);
+  if (same) {
+    liveSong.offsetSeconds = data.offsetSeconds;
+    liveSong.epochMs = data.epochMs;
+    if (!liveSong.bpm && data.bpm) liveSong.bpm = data.bpm;
+    liveLastSync = 0;
+  } else {
+    liveSong = { title: data.title, artist: data.artist, offsetSeconds: data.offsetSeconds, epochMs: data.epochMs, bpm: data.bpm || null, key: data.key || null, durationSeconds: data.videoDurationSeconds || null };
+    if (!liveSong.bpm) liveSong.bpm = await bpmFor(data.title, data.artist);
+    if (liveSong.bpm) { bpmCache[(data.title + '|' + data.artist).toLowerCase()] = liveSong.bpm; store('bpm', bpmCache); }
+    donor = null; donorAca = null; liveDropAt = null; liveRateSet = null;
+    pauseAca();
+    clearLyrics();
+    log('LOCK', data.title + (liveSong.bpm ? ' at ' + Math.round(liveSong.bpm) + ' BPM' : ', no BPM on file'));
+    findLiveInstrumental();
+    findDonors();
+  }
+  liveState('ALIGNED');
+  setLink('ok', 'LOCKED');
+  renderLiveHeader();
+  const left = liveSong.durationSeconds ? liveSong.durationSeconds - livePosNow() : 0;
+  scheduleLive(left > 0 ? left * 1000 + 4000 : 90000);
+}
+function scheduleLive(ms) {
+  if (liveTimer) clearTimeout(liveTimer);
+  liveTimer = null;
+  if (!$('liveFollow').checked || mode !== 'live') return;
+  liveTimer = setTimeout(liveIdentify, Math.max(ms, 8000));
+}
+
+async function findLiveInstrumental() {
+  $('liveInstTag').textContent = 'SEARCHING';
+  $('liveInstResults').innerHTML = '';
+  let d = null;
+  try { d = await (await fetch('/api/youtube-search?q=' + encodeURIComponent(liveSong.title + ' ' + liveSong.artist + ' instrumental'))).json(); } catch (e) {}
+  const rows = (d && d.results ? d.results : []).filter(r => /instrumental|karaoke|no vocals|beat/i.test(decodeHtml(r.title)));
+  if (!rows.length) { liveInst = null; $('liveInstTag').textContent = 'NONE FOUND'; $('liveInstInfo').textContent = 'No instrumental upload found, the donor plays over the room'; return; }
+  pickLiveInst(rows[0]);
+  rows.slice(1, 5).forEach(r => {
+    const b = document.createElement('button');
+    b.className = 'resultRow';
+    b.innerHTML = (r.thumbnail ? '<img alt="" src="' + esc(r.thumbnail) + '">' : '<img alt="">') + '<div class="rt"><div>' + esc(decodeHtml(r.title)) + '</div><div class="rs">' + esc(decodeHtml(r.channel)) + '</div></div>';
+    b.addEventListener('click', () => pickLiveInst(r));
+    $('liveInstResults').appendChild(b);
+  });
+}
+function pickLiveInst(r) {
+  liveInst = { videoId: r.videoId, title: decodeHtml(r.title) };
+  $('liveInstInfo').textContent = liveInst.title;
+  $('liveInstInfo').style.color = 'var(--ink)';
+  $('liveInstTag').textContent = 'LOADED';
+  ensurePlayer(() => { loadedVideo = liveInst.videoId; player.cueVideoById(liveInst.videoId, Math.max(0, livePosNow())); });
+  liveLastSync = 0;
+}
+
+async function findDonors() {
+  $('liveSug').innerHTML = '<div class="resultRow"><span class="rs">LOOKING FOR SAME BPM SONGS</span></div>';
+  const live = liveSong;
+  const out = [];
+  const seen = new Set([normLine(live.title)]);
+  try {
+    const d = await (await fetch('/api/beatmatch?title=' + encodeURIComponent(live.title) + '&artist=' + encodeURIComponent(live.artist) + '&tolerance=4')).json();
+    if (d && d.found && d.candidate && d.candidate.title && !seen.has(normLine(d.candidate.title))) {
+      seen.add(normLine(d.candidate.title));
+      out.push({ title: d.candidate.title, artist: d.candidate.artist || '', bpm: d.candidate.bpm });
+    }
+  } catch (e) {}
+  if (live.bpm) {
+    Object.keys(bpmCache).forEach(k => {
+      const bpm = bpmCache[k];
+      if (!bpm) return;
+      const [t, a] = k.split('|');
+      if (/instrumental|karaoke|acapella|a cappella|beat|remix|type beat/i.test(t)) return;
+      const clean = t.replace(/\(.*?\)|\[.*?\]/g, '').trim();
+      const n = normLine(clean);
+      if (!n || seen.has(n)) return;
+      const g = bpmGap(bpm, live.bpm);
+      if (!g || Math.abs(g.pct) > 4) return;
+      seen.add(n);
+      out.push({ title: clean, artist: a || '', bpm });
+    });
+  }
+  if (live !== liveSong) return;
+  out.forEach(o => { o.gap = live.bpm ? bpmGap(o.bpm, live.bpm) : null; });
+  out.sort((x, y) => (x.gap ? Math.abs(x.gap.pct) : 99) - (y.gap ? Math.abs(y.gap.pct) : 99));
+  $('liveSugTag').textContent = out.length ? out.length + ' MATCHES' : 'NONE YET';
+  if (!out.length) {
+    $('liveSug').innerHTML = '<div class="resultRow"><span class="rs">' + (live.bpm ? 'No same BPM songs in the library yet, the library grows with every song you search or hear' : 'No BPM on file for this song') + '</span></div>';
+    return;
+  }
+  $('liveSug').innerHTML = '';
+  out.slice(0, 12).forEach(o => {
+    const b = document.createElement('button');
+    b.className = 'resultRow';
+    b.innerHTML = '<div class="rt"><div>' + esc(o.title) + '</div><div class="rs">' + esc(o.artist) + '</div></div><span class="bpmTag ' + (o.gap ? o.gap.cls : '') + '">' + Math.round(o.bpm) + ' BPM' + (o.gap ? '<br>' + esc(o.gap.text) : '') + '</span>';
+    b.addEventListener('click', () => pickDonor(o));
+    $('liveSug').appendChild(b);
+  });
+  pickDonor(out[0]);
+}
+
+async function pickDonor(o) {
+  donor = { title: o.title, artist: o.artist, bpm: o.bpm, lines: [], chorus: [] };
+  donorAca = null; liveDropAt = null; liveRateSet = null;
+  pauseAca();
+  const g = liveSong && liveSong.bpm ? bpmGap(o.bpm, liveSong.bpm) : null;
+  const fold = g && /DOUBLE/.test(g.note) ? 2 : g && /HALF/.test(g.note) ? 0.5 : 1;
+  liveRate = liveSong && liveSong.bpm ? liveSong.bpm / (o.bpm * fold) : 1;
+  renderLiveHeader();
+  log('DONOR', o.title + ', pulling the acapella and lyrics');
+  try {
+    const d = await (await fetch('/api/lyrics?title=' + encodeURIComponent(o.title) + '&artist=' + encodeURIComponent(o.artist))).json();
+    const hit = d && d.results && d.results[0];
+    if (hit && donor && donor.title === o.title) { donor.lines = parseLrc(hit.synced); donor.chorus = markChorus(donor.lines); renderStats(donor); }
+  } catch (e) {}
+  $('liveAcaTag').textContent = 'SEARCHING';
+  $('liveAcaResults').innerHTML = '';
+  let d = null;
+  try { d = await (await fetch('/api/youtube-search?q=' + encodeURIComponent(o.title + ' ' + o.artist + ' acapella'))).json(); } catch (e) {}
+  if (!donor || donor.title !== o.title) return;
+  const rows = (d && d.results ? d.results : []).filter(r => ACA_WORDS.test(decodeHtml(r.title)));
+  if (!rows.length) { $('liveAcaTag').textContent = 'NONE FOUND'; $('liveAcaInfo').textContent = 'No vocal only upload for this donor, pick another suggestion'; return; }
+  pickDonorAca(rows[0]);
+  rows.slice(1, 5).forEach(r => {
+    const b = document.createElement('button');
+    b.className = 'resultRow';
+    b.innerHTML = (r.thumbnail ? '<img alt="" src="' + esc(r.thumbnail) + '">' : '<img alt="">') + '<div class="rt"><div>' + esc(decodeHtml(r.title)) + '</div><div class="rs">' + esc(decodeHtml(r.channel)) + '</div></div>';
+    b.addEventListener('click', () => pickDonorAca(r));
+    $('liveAcaResults').appendChild(b);
+  });
+}
+function pickDonorAca(r) {
+  donorAca = { videoId: r.videoId, title: decodeHtml(r.title) };
+  liveDropAt = null; liveRateSet = null;
+  $('liveAcaInfo').textContent = donorAca.title;
+  $('liveAcaInfo').style.color = 'var(--ink)';
+  $('liveAcaTag').textContent = 'PARKED';
+  ensureAcaPlayer(() => { acaLoaded = donorAca.videoId; acaPlayer.cueVideoById(donorAca.videoId, 0); });
+}
+
+function liveBar() { return liveSong && liveSong.bpm ? 60 / liveSong.bpm * 4 : 2; }
+function donorCue() { const l = liveLyricsLine(); return l ? l.t : 0; }
+function armLiveDrop(fromPos) {
+  const bar = liveBar();
+  liveDropAt = Math.ceil((fromPos + 0.25) / bar) * bar;
+  liveLastSync = 0;
+  $('liveAcaTag').textContent = 'DROPS IN ' + Math.max(0, liveDropAt - fromPos).toFixed(1) + ' S';
+}
+
+function liveTick() {
+  if (!liveSong) return;
+  const pos = livePosNow();
+  const dur = liveSong.durationSeconds;
+  $('elapsed').textContent = fmt(pos);
+  $('remaining').textContent = dur ? '-' + fmt(dur - pos) : '-0:00';
+  $('progress').style.width = dur ? Math.min(100, pos / dur * 100) + '%' : '0%';
+  if (liveSong.bpm) {
+    const n = Math.floor(pos / (60 / liveSong.bpm));
+    $('lcdTag').textContent = 'BAR ' + (Math.floor(n / 4) + 1) + ' BEAT ' + ((n % 4) + 1);
+  }
+  const nowMs = Date.now();
+  const doSync = nowMs - liveLastSync > 1000;
+  if (doSync) liveLastSync = nowMs;
+
+  if (liveWantPlay && liveInst && $('liveInstOn').checked && playerReady && doSync) {
+    try {
+      const at = player.getCurrentTime() || 0;
+      if (Math.abs(at - pos) > 0.4 || (playerState !== 1 && playerState !== 3)) { player.seekTo(Math.max(0, pos), true); if (playerState !== 1) player.playVideo(); }
+    } catch (e) {}
+  } else if ((!liveWantPlay || !$('liveInstOn').checked) && playerState === 1) { try { player.pauseVideo(); } catch (e) {} }
+
+  if (donor && donorAca && acaReady && liveWantPlay && $('liveAcaOn').checked) {
+    if (liveDropAt === null) armLiveDrop(pos);
+    if (liveRateSet !== liveRate) {
+      liveRateSet = liveRate;
+      try { acaPlayer.setPlaybackRate(nearestRate(liveRate)); } catch (e) {}
+    }
+    const target = donorCue() + (pos - liveDropAt) * liveRate + liveShift;
+    if (pos < liveDropAt) {
+      $('liveAcaTag').textContent = 'DROPS IN ' + (liveDropAt - pos).toFixed(1) + ' S';
+      if (acaState === 1) pauseAca();
+      const l = liveLyricsLine();
+      $('lyrCur').textContent = 'Drop on the next bar';
+      $('lyrCur').classList.remove('chorus');
+      $('lyrNext').textContent = l ? l.text : '';
+      $('leadBar').style.width = Math.min(100, (1 - (liveDropAt - pos) / liveBar()) * 100) + '%';
+      lastIdx = -2;
+    } else {
+      $('liveAcaTag').textContent = 'PLAYING';
+      if (doSync) {
+        try {
+          const at = acaPlayer.getCurrentTime() || 0;
+          if (Math.abs(at - target) > 0.35) acaPlayer.seekTo(Math.max(0, target), true);
+          if (acaState !== 1 && acaState !== 3) acaPlayer.playVideo();
+        } catch (e) {}
+      }
+      showLyrics(donor.lines, target - liveShift);
+    }
+  } else if (acaState === 1 && (!liveWantPlay || !$('liveAcaOn').checked)) pauseAca();
+}
+
+$('liveListenBtn').addEventListener('click', liveIdentify);
+$('livePlayBtn').addEventListener('click', () => {
+  liveWantPlay = !liveWantPlay;
+  $('livePlayLabel').textContent = liveWantPlay ? 'STOP' : 'PLAY';
+  $('livePlayBtn').classList.toggle('armed', liveWantPlay);
+  if (liveWantPlay) {
+    liveLastSync = 0;
+    try { if (playerReady && liveInst && $('liveInstOn').checked) { player.seekTo(Math.max(0, livePosNow()), true); player.playVideo(); } } catch (e) {}
+    try { if (acaReady && donorAca) { acaPlayer.playVideo(); acaPlayer.pauseVideo(); } } catch (e) {}
+    log('PLAY', liveSong ? 'locked to ' + liveSong.title + ', donor drops on the next bar' : 'armed, listen to lock a song');
+  } else {
+    try { if (player) player.pauseVideo(); } catch (e) {}
+    pauseAca();
+    liveDropAt = null;
+    log('STOP', 'smash stopped');
+  }
+});
+$('liveDropBtn').addEventListener('click', () => {
+  if (!liveSong || !donor) { log('DROP', 'listen and pick a donor first'); return; }
+  const pos = livePosNow();
+  const beat = liveSong.bpm ? 60 / liveSong.bpm : 0.5;
+  liveDropAt = Math.round(pos / beat) * beat;
+  liveLastSync = 0;
+  log('DROP', 'donor dropped on the beat at ' + fmt(liveDropAt));
+});
+renderLiveNudges();
+
 /* main loop */
-setInterval(() => { if (mode === 'smash') smashTick(); else karaokeTick(); }, 100);
+setInterval(() => { if (mode === 'smash') smashTick(); else if (mode === 'karaoke') karaokeTick(); else liveTick(); }, 100);
 
 /* restore last tune */
 renderOffset(); renderRatio(); renderKn(); renderAs(); setArmed(false); loadPhase();
