@@ -810,13 +810,32 @@ function nearestRate(want) {
   return rates.reduce((best, r) => Math.abs(r - want) < Math.abs(best - want) ? r : best, rates[0]);
 }
 
+/* buffering guard: warm the voice before the drop, and never stack seeks while a stream is still loading */
+let acaWarming = false, acaGraceUntil = 0, instGraceUntil = 0, warmToken = 0;
+function warmAca(at) {
+  if (!acaPlayer || !acaReady) return;
+  acaWarming = true;
+  const tok = ++warmToken;
+  try { acaPlayer.mute(); acaPlayer.seekTo(Math.max(0, at), true); acaPlayer.playVideo(); } catch (e) {}
+  setTimeout(() => {
+    if (tok !== warmToken || !acaWarming) return;
+    try { acaPlayer.pauseVideo(); acaPlayer.seekTo(Math.max(0, at), true); acaPlayer.unMute(); acaPlayer.setVolume(+$('acaVol').value); } catch (e) {}
+    acaWarming = false;
+  }, 5000);
+}
+function acaSeek(t) {
+  try { acaPlayer.seekTo(Math.max(0, t), true); } catch (e) {}
+  acaGraceUntil = Date.now() + 2000;
+}
+
 function syncAca(tuneT) {
   if (!aca || !acaReady || !acaPlayer) return;
   if (armed) {
-    if (acaState === 1) pauseAca();
-    if (acaParkedAt !== cueT + acaShift) { acaParkedAt = cueT + acaShift; try { acaPlayer.seekTo(Math.max(0, acaParkedAt), true); acaPlayer.pauseVideo(); } catch (e) {} }
+    if (acaState === 1 && !acaWarming) pauseAca();
+    if (acaParkedAt !== cueT + acaShift && !acaWarming) { acaParkedAt = cueT + acaShift; warmAca(acaParkedAt); }
     return;
   }
+  if (acaWarming) { acaWarming = false; try { acaPlayer.unMute(); acaPlayer.setVolume(+$('acaVol').value); } catch (e) {} }
   if (!$('acaOn').checked || playerState !== 1) { if (acaState === 1) pauseAca(); return; }
   const want = ratio();
   if (acaRateSet !== want) {
@@ -835,8 +854,9 @@ function syncAca(tuneT) {
   try {
     const acaDur = acaPlayer.getDuration() || 0;
     if (acaDur && target >= acaDur - 0.3) { if (acaState === 1) pauseAca(); return; }
-    if (Math.abs(at - target) > 0.35) acaPlayer.seekTo(target, true);
-    if (acaState !== 1 && acaState !== 3) acaPlayer.playVideo();
+    if (acaState === 3 || nowMs < acaGraceUntil) return;
+    if (Math.abs(at - target) > 0.5) acaSeek(target);
+    if (acaState !== 1) acaPlayer.playVideo();
   } catch (e) {}
 }
 
@@ -940,7 +960,10 @@ $('dropBtn').addEventListener('click', () => {
   acaLastSync = 0;
   if (aca && acaReady && $('acaOn').checked) {
     const start = (t - offsetSec) * ratio() + acaShift;
-    try { acaPlayer.seekTo(Math.max(0, start), true); acaPlayer.playVideo(); } catch (e) {}
+    acaWarming = false;
+    try { acaPlayer.unMute(); acaPlayer.setVolume(+$('acaVol').value); } catch (e) {}
+    if (Math.abs(start - (cueT + acaShift)) > 0.5) acaSeek(start); else acaGraceUntil = Date.now() + 1500;
+    try { acaPlayer.playVideo(); } catch (e) {}
   }
   log('DROP', 'acapella dropped at ' + fmt(landAt) + (landAt !== t ? ', snapped ' + Math.round((landAt - t) * 1000) + ' ms' : '') + ', nudge with earlier and later');
 });
@@ -1067,6 +1090,7 @@ function karaokeTick() {
 
 /* ===== LIVE SMASH MODE ===== */
 let liveSong = null, liveTimer = null, liveBusy = false, liveNudgeMs = 0, liveShift = 0;
+let liveWarmedFor = null;
 let liveInst = null, donor = null, donorAca = null, liveDropAt = null, liveRate = 1, liveRateSet = null, liveLastSync = 0, liveWantPlay = false;
 
 function liveLyricsLine() { return donor && donor.lines.length ? donor.lines.find(l => l.text) : null; }
@@ -1293,7 +1317,10 @@ function liveTick() {
       const at = player.getCurrentTime() || 0;
       const instDur = player.getDuration() || 0;
       if (instDur && pos >= instDur - 0.5) { if (playerState === 1) player.pauseVideo(); }
-      else if (Math.abs(at - pos) > 0.4 || (playerState !== 1 && playerState !== 3)) { player.seekTo(Math.max(0, pos), true); if (playerState !== 1) player.playVideo(); }
+      else if (playerState !== 3 && nowMs >= instGraceUntil && (Math.abs(at - pos) > 0.5 || playerState !== 1)) {
+        if (Math.abs(at - pos) > 0.5) { player.seekTo(Math.max(0, pos), true); instGraceUntil = nowMs + 2000; }
+        if (playerState !== 1) player.playVideo();
+      }
     } catch (e) {}
   } else if ((!liveWantPlay || !$('liveInstOn').checked) && playerState === 1) { try { player.pauseVideo(); } catch (e) {} }
 
@@ -1306,7 +1333,8 @@ function liveTick() {
     const target = donorCue() + (pos - liveDropAt) * liveRate + liveShift;
     if (pos < liveDropAt) {
       $('liveAcaTag').textContent = 'DROPS IN ' + (liveDropAt - pos).toFixed(1) + ' S';
-      if (acaState === 1) pauseAca();
+      if (liveWarmedFor !== donorAca.videoId && !acaWarming) { liveWarmedFor = donorAca.videoId; warmAca(donorCue() + liveShift); }
+      if (acaState === 1 && !acaWarming) pauseAca();
       const l = liveLyricsLine();
       $('lyrCur').textContent = 'Drop on the next bar';
       $('lyrCur').classList.remove('chorus');
@@ -1320,9 +1348,10 @@ function liveTick() {
           const at = acaPlayer.getCurrentTime() || 0;
           const acaDur = acaPlayer.getDuration() || 0;
           if (acaDur && target >= acaDur - 0.3) { if (acaState === 1) pauseAca(); $('liveAcaTag').textContent = 'FINISHED'; }
-          else {
-            if (Math.abs(at - target) > 0.35) acaPlayer.seekTo(Math.max(0, target), true);
-            if (acaState !== 1 && acaState !== 3) acaPlayer.playVideo();
+          else if (acaState !== 3 && nowMs >= acaGraceUntil) {
+            if (acaWarming) { acaWarming = false; acaPlayer.unMute(); }
+            if (Math.abs(at - target) > 0.5) acaSeek(target);
+            if (acaState !== 1) acaPlayer.playVideo();
           }
         } catch (e) {}
       }
