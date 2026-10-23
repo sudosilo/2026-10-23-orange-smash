@@ -261,7 +261,7 @@
 
 <div id="livePanel" class="hide">
   <div class="card">
-    <div class="cardTitle"><span>Live smash</span><span class="mono" id="liveState">IDLE</span></div>
+    <div class="cardTitle"><span>Live smash</span><span></span></div>
     <div class="toggleRow"><span>Auto follow songs</span><input type="checkbox" id="liveFollow" checked></div>
     <div class="toggleRow"><span>Play the instrumental</span><input type="checkbox" id="liveInstOn" checked></div>
     <div class="toggleRow"><span>Play the donor acapella</span><input type="checkbox" id="liveAcaOn" checked></div>
@@ -290,7 +290,7 @@
 
 <div id="karaokePanel" class="hide">
   <div class="card">
-    <div class="cardTitle"><span>Live karaoke</span><span class="mono" id="syncState">IDLE</span></div>
+    <div class="cardTitle"><span>Live karaoke</span><span></span></div>
     <div class="toggleRow"><span>Auto follow songs</span><input type="checkbox" id="followToggle" checked></div>
     <div class="toggleRow"><span>Lyric timing</span><span class="ctl"><button class="seg" data-kn="-250">-</button><span class="mono readout" id="knVal">+0 ms</span><button class="seg" data-kn="250">+</button><button class="seg" data-kn="0">RST</button></span></div>
   </div>
@@ -1061,12 +1061,12 @@ $('restartBtn').addEventListener('click', () => {
 
 /* ===== LIVE KARAOKE MODE ===== */
 let stream = null, busy = false, karaokeTimer = null, live = null, knMs = 0;
-function syncState(t) { $('syncState').textContent = t; }
+function syncState(t) {}
 function renderKaraokeHeader() {
   if (mode !== 'karaoke') return;
   $('title').textContent = live ? live.title : 'Tap listen';
   $('artist').textContent = live ? live.artist : 'Hold the phone near the speaker';
-  $('lcdTag').textContent = live ? (live.lines.length ? 'LOCKED' : 'NO LYRICS') : 'NOT LISTENING';
+  $('lcdTag').textContent = live ? (live.lines.length ? 'LOCKED' : 'NO LYRICS') : '';
   const bits = [];
   if (live && live.bpm) bits.push(Math.round(live.bpm) + ' BPM');
   if (live && live.key) bits.push('KEY ' + live.key);
@@ -1110,7 +1110,6 @@ async function identify() {
   if (karaokeTimer) { clearTimeout(karaokeTimer); karaokeTimer = null; }
   syncState('LISTENING');
   setLink('busy', 'LISTENING');
-  $('listenLabel').textContent = 'LISTENING';
   const capturedAt = now();
   const blob = await recordClip();
   let data = null;
@@ -1186,13 +1185,13 @@ let liveInst = null, donor = null, donorAca = null, liveDropAt = null, liveRate 
 
 function liveLyricsLine() { return donor && donor.lines.length ? donor.lines.find(l => l.text) : null; }
 function livePosNow() { return liveSong ? liveSong.offsetSeconds + (now() - liveSong.epochMs) / 1000 + liveNudgeMs / 1000 : 0; }
-function liveState(t) { $('liveState').textContent = t; }
+function liveState(t) {}
 
 function renderLiveHeader() {
   if (mode !== 'live') return;
   $('title').textContent = liveSong ? liveSong.title : 'Tap listen';
   $('artist').textContent = donor ? 'Smashing: ' + donor.title + ' / ' + donor.artist : (liveSong ? liveSong.artist : 'Hold the phone near the speaker');
-  $('lcdTag').textContent = liveSong ? (donor ? 'SMASH READY' : 'LOCKED') : 'NOT LISTENING';
+  $('lcdTag').textContent = liveSong ? (donor ? 'SMASH READY' : 'LOCKED') : '';
   const bits = [];
   if (liveSong && liveSong.bpm) bits.push('LIVE ' + Math.round(liveSong.bpm));
   if (donor && donor.bpm) bits.push('DONOR ' + Math.round(donor.bpm));
@@ -1219,7 +1218,6 @@ async function liveIdentify() {
   if (liveTimer) { clearTimeout(liveTimer); liveTimer = null; }
   liveState('LISTENING');
   setLink('busy', 'LISTENING');
-  $('liveListenLabel').textContent = 'LISTENING';
   const capturedAt = now();
   const blob = await recordClip();
   let data = null;
