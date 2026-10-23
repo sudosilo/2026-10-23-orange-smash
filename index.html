@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#e9e6df">
+<title>Lyric Smash</title>
+<style>
+  :root {
+    --chassis: #e9e6df;
+    --chassis-edge: #cfcac0;
+    --panel: #f6f4ef;
+    --ink: #22252a;
+    --ink-soft: #5d6168;
+    --ink-faint: #8b8f96;
+    --lcd: #dfe8cf;
+    --lcd-edge: #b8c4a3;
+    --lcd-ink: #26321a;
+    --lcd-dim: #6f7d5c;
+    --accent: #c4561f;
+    --ok: #2f8a4a;
+    --warn: #b7791f;
+    --key: #fbfaf7;
+    --key-shadow: #bdb7ab;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--chassis); color: var(--ink); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    min-height: 100vh;
+    padding: 14px 14px 40px;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Roboto Mono", monospace; }
+
+  header { display: flex; align-items: center; gap: 10px; }
+  .logo { width: 34px; height: 34px; border-radius: 8px; background: var(--ink); display: grid; place-items: center; flex: none; }
+  .brand { line-height: 1.1; flex: 1; min-width: 0; }
+  .brand b { display: block; font-size: 15px; letter-spacing: 3px; }
+  .brand span { font-size: 11px; color: var(--ink-soft); letter-spacing: 1px; text-transform: uppercase; }
+  .pill { font-size: 10px; letter-spacing: 1px; padding: 5px 8px; border-radius: 20px; background: var(--panel); border: 1px solid var(--chassis-edge); display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-faint); }
+  .dot.ok { background: var(--ok); box-shadow: 0 0 0 3px rgba(47,138,74,.18); }
+  .dot.busy { background: var(--warn); animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: .25; } }
+
+  .modeRow { display: flex; gap: 6px; margin: 14px 0 8px; }
+  .modeRow .seg { flex: 1; padding: 10px 0; font-size: 11px; }
+
+  .card { background: var(--panel); border: 1px solid var(--chassis-edge); border-radius: 14px; padding: 12px; margin-top: 12px; box-shadow: inset 0 1px 0 #fff; }
+  .cardTitle { font-size: 10px; letter-spacing: 2px; color: var(--ink-faint); text-transform: uppercase; margin-bottom: 8px; display: flex; justify-content: space-between; gap: 8px; }
+
+  .lcd { background: var(--lcd); border: 2px solid var(--lcd-edge); border-radius: 10px; padding: 12px; color: var(--lcd-ink); box-shadow: inset 0 2px 6px rgba(0,0,0,.08); }
+  .lcdTop { display: flex; justify-content: space-between; font-size: 10px; letter-spacing: 1.5px; color: var(--lcd-dim); }
+  .nowRow { display: flex; gap: 12px; margin-top: 10px; align-items: center; }
+  .art { width: 78px; height: 78px; border-radius: 6px; background: var(--lcd-edge); flex: none; overflow: hidden; position: relative; display: grid; place-items: center; }
+  #tuneSlot { position: absolute; inset: 0; overflow: hidden; visibility: hidden; }
+  #tuneSlot.on { visibility: visible; }
+  #tuneSlot iframe { position: absolute; top: 0; left: 50%; width: 139px; height: 78px; transform: translateX(-50%); border: 0; pointer-events: none; }
+  .nowText { min-width: 0; flex: 1; }
+  .title { font-size: 17px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .artist { font-size: 13px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .meta { font-size: 11px; color: var(--lcd-dim); margin-top: 6px; letter-spacing: .5px; }
+
+  .lyrics { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--lcd-edge); min-height: 108px; text-align: center; }
+  .lyr { font-size: 13px; color: var(--lcd-dim); min-height: 20px; line-height: 1.4; }
+  .lyr.cur { font-size: 21px; font-weight: 700; color: var(--lcd-ink); min-height: 56px; margin: 6px 0; line-height: 1.3; display: flex; align-items: center; justify-content: center; }
+  .lyr.cur.chorus { color: var(--accent); }
+
+  .bar { height: 6px; background: rgba(38,50,26,.15); border-radius: 3px; margin-top: 10px; overflow: hidden; }
+  .bar > div { height: 100%; width: 0%; background: var(--lcd-ink); border-radius: 3px; transition: width .25s linear; }
+  .times { display: flex; justify-content: space-between; font-size: 12px; margin-top: 5px; }
+
+  .transport { display: flex; justify-content: center; align-items: center; gap: 16px; margin-top: 14px; }
+  .key { background: var(--key); border: 1px solid var(--chassis-edge); border-radius: 50%; box-shadow: 0 3px 0 var(--key-shadow); display: grid; place-items: center; padding: 0; color: var(--ink); font: 700 15px ui-monospace, Menlo, monospace; }
+  .key:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--key-shadow); }
+  .key.small { width: 56px; height: 56px; }
+  .key.big { width: 72px; height: 72px; }
+  .key svg { width: 30px; height: 30px; fill: currentColor; }
+  .keyLabels { display: flex; justify-content: center; gap: 16px; margin-top: 6px; font-size: 9px; letter-spacing: 1.5px; color: var(--ink-faint); }
+  .keyLabels span { width: 56px; text-align: center; }
+  .keyLabels span:nth-child(2) { width: 72px; }
+
+  #ack { margin-top: 12px; font-size: 12px; color: var(--ink-soft); min-height: 34px; line-height: 1.45; }
+  #ack .cmd { color: var(--accent); }
+
+  .seg { padding: 6px 9px; border-radius: 8px; border: 1px solid var(--chassis-edge); background: var(--key); color: var(--ink); font: 600 10px/1 ui-monospace, Menlo, monospace; letter-spacing: 1px; }
+  .seg.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .sbtn { padding: 10px 14px; border-radius: 10px; border: 1px solid var(--chassis-edge); background: var(--key); color: var(--ink); font: 600 12px/1 ui-monospace, Menlo, monospace; letter-spacing: 1px; text-transform: uppercase; flex: none; }
+  .sbtn.go { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .searchRow { display: flex; gap: 8px; }
+  .searchRow input, .numIn { flex: 1; min-width: 0; padding: 10px; border-radius: 8px; border: 1px solid var(--chassis-edge); background: #fff; color: var(--ink); font: 15px -apple-system, Roboto, sans-serif; }
+  .numIn { flex: none; width: 84px; text-align: center; font-family: ui-monospace, Menlo, monospace; }
+
+  .resultRow { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 8px 0; border: 0; border-top: 1px solid #e6e2d9; background: transparent; color: var(--ink); font: 13px -apple-system, Roboto, sans-serif; cursor: pointer; }
+  .resultRow:first-child { border-top: 0; }
+  .resultRow img { width: 48px; height: 36px; border-radius: 4px; object-fit: cover; flex: none; background: var(--lcd-edge); }
+  .resultRow .rt { flex: 1; min-width: 0; }
+  .resultRow .rt div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .resultRow .rs { font-size: 10px; letter-spacing: 1px; color: var(--ink-faint); }
+
+  .picked { margin-top: 8px; font-size: 13px; padding: 8px 10px; border-radius: 8px; background: #fff; border: 1px solid var(--chassis-edge); display: none; }
+  .picked.on { display: block; }
+  .picked .ps { font-size: 10px; letter-spacing: 1px; color: var(--ink-faint); margin-top: 2px; }
+
+  .toggleRow { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 13px; padding: 6px 0; }
+  .toggleRow + .toggleRow { border-top: 1px solid #e6e2d9; }
+  .ctl { display: flex; gap: 6px; align-items: center; }
+  .readout { min-width: 72px; text-align: center; font-size: 13px; }
+
+  .stat { display: grid; grid-template-columns: 1fr auto; gap: 6px; font-size: 13px; padding: 6px 0; border-top: 1px solid #e6e2d9; }
+  .stat:first-child { border-top: 0; }
+  .stat span:last-child { font-family: ui-monospace, Menlo, monospace; }
+  .chorusText { margin-top: 8px; font-size: 12px; color: var(--ink-soft); line-height: 1.5; }
+
+  .hide { display: none !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><svg width="20" height="20" viewBox="0 0 24 24"><path d="M3 12h2v5H3zm4-4h2v13H7zm4-5h2v18h-2zm4 6h2v9h-2zm4 3h2v5h-2z" fill="#fff"/></svg></div>
+  <div class="brand"><b>LYRIC SMASH</b><span>Smash Director</span></div>
+  <div class="pill mono"><span class="dot" id="linkDot"></span><span id="linkText">STANDBY</span></div>
+</header>
+
+<div class="modeRow">
+  <button class="seg on" data-mode="smash">SMASH</button>
+  <button class="seg" data-mode="karaoke">LIVE KARAOKE</button>
+</div>
+
+<div class="lcd mono" id="lcd">
+  <div class="lcdTop"><span id="lcdLabel">NOW SMASHING</span><span id="lcdTag">NO TUNE</span></div>
+  <div class="nowRow">
+    <div class="art"><svg width="28" height="28" viewBox="0 0 24 24"><path d="M12 3v10.6A4 4 0 1 0 14 17V7h4V3z" fill="#6f7d5c"/></svg><div id="tuneSlot"><div id="tunePlayer"></div></div></div>
+    <div class="nowText">
+      <div class="title" id="title">Pick a tune</div>
+      <div class="artist" id="artist">Then pick the words</div>
+      <div class="meta" id="meta">--</div>
+    </div>
+  </div>
+  <div class="lyrics">
+    <div class="lyr" id="lyrPrev"></div>
+    <div class="lyr cur" id="lyrCur"></div>
+    <div class="lyr" id="lyrNext"></div>
+  </div>
+  <div class="bar"><div id="progress"></div></div>
+  <div class="times"><span id="elapsed">0:00</span><span id="remaining">-0:00</span></div>
+</div>
+
+<div class="transport" id="smashTransport">
+  <button class="key small" id="backBtn" aria-label="Words earlier">-1/4</button>
+  <button class="key big" id="playBtn" aria-label="Play"><svg viewBox="0 0 24 24"><path d="M7 5v14l12-7z"/></svg></button>
+  <button class="key small" id="fwdBtn" aria-label="Words later">+1/4</button>
+</div>
+<div class="keyLabels mono" id="smashLabels"><span>EARLIER</span><span id="playLabel">PLAY</span><span>LATER</span></div>
+
+<div class="transport hide" id="karaokeTransport">
+  <button class="key big" id="listenBtn" aria-label="Listen"><svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v7a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-2.1A7 7 0 0 0 19 12z"/></svg></button>
+</div>
+<div class="keyLabels mono hide" id="karaokeLabels"><span></span><span id="listenLabel">LISTEN</span><span></span></div>
+
+<div id="ack" class="mono"></div>
+
+<div id="smashPanel">
+  <div class="card">
+    <div class="cardTitle"><span>Tune</span><span class="mono" id="tuneCount"></span></div>
+    <div class="searchRow"><input id="tuneInput" placeholder="Song or artist"><button class="sbtn" id="tuneFind">Find</button></div>
+    <div class="toggleRow"><span>Instrumentals only</span><input type="checkbox" id="instOnly" checked></div>
+    <div id="tuneResults"></div>
+    <div class="picked" id="tunePicked"></div>
+  </div>
+
+  <div class="card">
+    <div class="cardTitle"><span>Words</span><span class="mono" id="wordsCount"></span></div>
+    <div class="searchRow"><input id="wordsInput" placeholder="Song or artist"><button class="sbtn" id="wordsFind">Find</button></div>
+    <div id="wordsResults" style="margin-top:6px;"></div>
+    <div class="picked" id="wordsPicked"></div>
+  </div>
+
+  <div class="card">
+    <div class="cardTitle"><span>Stretch</span><span class="mono" id="ratioTag">1.000X</span></div>
+    <div class="toggleRow"><span>Tune BPM</span><input class="numIn" id="tuneBpm" type="number" step="0.1" inputmode="decimal"></div>
+    <div class="toggleRow"><span>Words BPM</span><input class="numIn" id="wordsBpm" type="number" step="0.1" inputmode="decimal"></div>
+    <div class="toggleRow"><span>Words tempo</span><span class="ctl"><button class="seg" data-fold="0.5">HALF</button><button class="seg on" data-fold="1">1X</button><button class="seg" data-fold="2">DOUBLE</button></span></div>
+    <div class="toggleRow"><span>Words start</span><span class="ctl"><span class="mono readout" id="offsetVal">+0.00 s</span><button class="seg" id="offsetReset">RST</button></span></div>
+  </div>
+</div>
+
+<div id="karaokePanel" class="hide">
+  <div class="card">
+    <div class="cardTitle"><span>Live karaoke</span><span class="mono" id="syncState">IDLE</span></div>
+    <div class="toggleRow"><span>Auto follow songs</span><input type="checkbox" id="followToggle" checked></div>
+    <div class="toggleRow"><span>Lyric timing</span><span class="ctl"><button class="seg" data-kn="-250">-</button><span class="mono readout" id="knVal">+0 ms</span><button class="seg" data-kn="250">+</button><button class="seg" data-kn="0">RST</button></span></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="cardTitle"><span>Word count</span><span class="mono" id="statSong"></span></div>
+  <div id="stats"><div class="stat"><span style="color:var(--ink-faint)">Load words to count them</span><span></span></div></div>
+  <div class="chorusText" id="chorusText"></div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const CLIP_MS = 9000;
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+function fmt(sec) {
+  if (sec === null || sec === undefined || !isFinite(sec)) return '--:--';
+  sec = Math.max(0, Math.floor(sec));
+  return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+}
+function setLink(state, text) { $('linkDot').className = 'dot' + (state ? ' ' + state : ''); $('linkText').textContent = text; }
+let ackTimer = null;
+function log(cmd, text, holdMs) {
+  $('ack').innerHTML = '&gt; <span class="cmd">' + esc(cmd) + '</span> ' + esc(text);
+  if (ackTimer) clearTimeout(ackTimer);
+  if (holdMs !== 0) ackTimer = setTimeout(() => { $('ack').innerHTML = ''; }, holdMs || 6000);
+}
+function store(k, v) { try { localStorage.setItem('smash:' + k, JSON.stringify(v)); } catch (e) {} }
+function recall(k) { try { return JSON.parse(localStorage.getItem('smash:' + k) || 'null'); } catch (e) { return null; } }
+
+/* server clock, copied from the zone director sync */
+let clockOffsetMs = 0, calibrated = false;
+async function calibrateClock() {
+  const samples = [];
+  for (let i = 0; i < 5; i++) {
+    const t0 = Date.now();
+    try {
+      const data = await (await fetch('/api/time', { cache: 'no-store' })).json();
+      const t1 = Date.now();
+      samples.push({ offset: (data.serverTime + (t1 - t0) / 2) - t1, rtt: t1 - t0 });
+    } catch (err) {}
+  }
+  if (!samples.length) return;
+  samples.sort((a, b) => a.rtt - b.rtt);
+  if (!calibrated) { clockOffsetMs = samples[0].offset; calibrated = true; }
+  else clockOffsetMs += (samples[0].offset - clockOffsetMs) * 0.5;
+}
+function now() { return Date.now() + clockOffsetMs; }
+calibrateClock();
+setInterval(calibrateClock, 75000);
+
+/* lyric parsing and counting */
+function parseLrc(text) {
+  const lines = [];
+  (text || '').split(/\r?\n/).forEach(raw => {
+    const stamps = [...raw.matchAll(/\[(\d+):(\d+(?:\.\d+)?)\]/g)];
+    if (!stamps.length) return;
+    const words = raw.replace(/\[[^\]]*\]/g, '').replace(/<[^>]*>/g, '').trim();
+    stamps.forEach(m => lines.push({ t: Number(m[1]) * 60 + Number(m[2]), text: words }));
+  });
+  lines.sort((a, b) => a.t - b.t);
+  return lines;
+}
+function normLine(s) { return (s || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim(); }
+function wordCount(s) { return (s || '').split(/\s+/).filter(w => /[a-z0-9]/i.test(w)).length; }
+function consonantCount(s) { return ((s || '').toLowerCase().match(/[bcdfghjklmnpqrstvwxyz]/g) || []).length; }
+
+function markChorus(lines) {
+  const counts = {};
+  lines.forEach(l => { const n = normLine(l.text); if (n) counts[n] = (counts[n] || 0) + 1; });
+  lines.forEach(l => { const n = normLine(l.text); l.chorus = !!n && counts[n] >= 2; });
+  const seen = new Set(), chorus = [];
+  lines.forEach(l => { const n = normLine(l.text); if (l.chorus && !seen.has(n)) { seen.add(n); chorus.push(l.text); } });
+  return chorus;
+}
+
+function renderStats(src) {
+  if (!src || !src.lines.length) {
+    $('statSong').textContent = '';
+    $('stats').innerHTML = '<div class="stat"><span style="color:var(--ink-faint)">Load words to count them</span><span></span></div>';
+    $('chorusText').textContent = '';
+    return;
+  }
+  const lines = src.lines.filter(l => l.text);
+  const chorus = src.chorus;
+  const all = lines.map(l => l.text).join(' ');
+  const ch = chorus.join(' ');
+  const span = lines.length > 1 ? lines[lines.length - 1].t - lines[0].t : 0;
+  const bpm = src.bpm;
+  const beats = bpm && span ? span * bpm / 60 : null;
+  const rows = [
+    ['Lines', lines.length],
+    ['Words, whole song', wordCount(all)],
+    ['Consonants, whole song', consonantCount(all)],
+    ['Chorus lines', chorus.length],
+    ['Words, chorus', chorus.length ? wordCount(ch) : 'none found'],
+    ['Consonants, chorus', chorus.length ? consonantCount(ch) : 'none found'],
+    ['Words per beat', beats ? (wordCount(all) / beats).toFixed(2) : 'needs BPM']
+  ];
+  $('statSong').textContent = (src.title || '').toUpperCase().slice(0, 28);
+  $('stats').innerHTML = rows.map(r => '<div class="stat"><span>' + esc(r[0]) + '</span><span>' + esc(r[1]) + '</span></div>').join('');
+  $('chorusText').textContent = chorus.length ? 'Chorus is the lines that repeat. Orange lines on the screen are chorus lines.' : '';
+}
+
+/* shared lyric display */
+let lastIdx = -2;
+function showLyrics(lines, t) {
+  let idx = -1;
+  if (lines && lines.length) {
+    let lo = 0, hi = lines.length - 1;
+    while (lo <= hi) { const mid = (lo + hi) >> 1; if (lines[mid].t <= t) { idx = mid; lo = mid + 1; } else hi = mid - 1; }
+  }
+  if (idx === lastIdx) return;
+  lastIdx = idx;
+  const at = (i) => (lines && lines[i] ? lines[i] : null);
+  const cur = at(idx);
+  $('lyrPrev').textContent = at(idx - 1) ? at(idx - 1).text : '';
+  $('lyrCur').textContent = cur ? (cur.text || '...') : (lines && lines.length ? '...' : '');
+  $('lyrCur').classList.toggle('chorus', !!(cur && cur.chorus));
+  $('lyrNext').textContent = at(idx + 1) ? at(idx + 1).text : '';
+}
+function clearLyrics() { lastIdx = -2; $('lyrPrev').textContent = ''; $('lyrCur').textContent = ''; $('lyrNext').textContent = ''; }
+
+/* mode switch */
+let mode = 'smash';
+function setMode(m) {
+  mode = m;
+  document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('on', b.getAttribute('data-mode') === m));
+  const smash = m === 'smash';
+  ['smashPanel', 'smashTransport', 'smashLabels'].forEach(id => $(id).classList.toggle('hide', !smash));
+  ['karaokePanel', 'karaokeTransport', 'karaokeLabels'].forEach(id => $(id).classList.toggle('hide', smash));
+  clearLyrics();
+  if (smash) {
+    if (karaokeTimer) { clearTimeout(karaokeTimer); karaokeTimer = null; }
+    $('lcdLabel').textContent = 'NOW SMASHING';
+    renderSmashHeader();
+    renderStats(words);
+  } else {
+    pauseTune();
+    $('lcdLabel').textContent = 'LIVE KARAOKE';
+    renderKaraokeHeader();
+    renderStats(live);
+  }
+}
+document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => setMode(b.getAttribute('data-mode'))));
+
+/* ===== SMASH MODE ===== */
+let tune = recall('tune');
+let words = null;
+let fold = 1;
+let offsetSec = 0;
+
+function ratio() {
+  const tb = parseFloat($('tuneBpm').value), wb = parseFloat($('wordsBpm').value);
+  if (!(tb > 0) || !(wb > 0)) return 1;
+  return tb / (wb * fold);
+}
+function renderRatio() { $('ratioTag').textContent = ratio().toFixed(3) + 'X'; }
+function renderOffset() { $('offsetVal').textContent = (offsetSec >= 0 ? '+' : '') + offsetSec.toFixed(2) + ' s'; }
+['tuneBpm', 'wordsBpm'].forEach(id => $(id).addEventListener('input', () => { renderRatio(); renderSmashHeader(); }));
+document.querySelectorAll('[data-fold]').forEach(b => b.addEventListener('click', () => {
+  fold = parseFloat(b.getAttribute('data-fold'));
+  document.querySelectorAll('[data-fold]').forEach(x => x.classList.toggle('on', x === b));
+  renderRatio(); renderSmashHeader();
+}));
+function quarterBeat() { const tb = parseFloat($('tuneBpm').value); return tb > 0 ? 60 / tb / 4 : 0.25; }
+$('backBtn').addEventListener('click', () => { offsetSec -= quarterBeat(); renderOffset(); lastIdx = -2; log('NUDGE', 'words land earlier'); });
+$('fwdBtn').addEventListener('click', () => { offsetSec += quarterBeat(); renderOffset(); lastIdx = -2; log('NUDGE', 'words land later'); });
+$('offsetReset').addEventListener('click', () => { offsetSec = 0; renderOffset(); lastIdx = -2; });
+
+function renderSmashHeader() {
+  if (mode !== 'smash') return;
+  $('title').textContent = tune ? tune.title : 'Pick a tune';
+  $('artist').textContent = words ? 'Words: ' + words.title + ' / ' + words.artist : 'Then pick the words';
+  $('lcdTag').textContent = tune && words ? 'READY' : tune ? 'NEEDS WORDS' : 'NO TUNE';
+  const tb = parseFloat($('tuneBpm').value), wb = parseFloat($('wordsBpm').value);
+  const bits = [];
+  bits.push(tb > 0 ? 'TUNE ' + Math.round(tb) : 'TUNE --');
+  bits.push(wb > 0 ? 'WORDS ' + Math.round(wb * fold) : 'WORDS --');
+  bits.push(ratio().toFixed(3) + 'X');
+  $('meta').textContent = bits.join(' / ');
+}
+
+async function lookupBpm(title, artist, field) {
+  $(field).value = '';
+  $(field).placeholder = '...';
+  try {
+    const d = await (await fetch('/api/bpm?title=' + encodeURIComponent(title) + '&artist=' + encodeURIComponent(artist || ''))).json();
+    if (d.bpm) { $(field).value = d.bpm; $(field).placeholder = ''; log('BPM', Math.round(d.bpm) + ' for ' + title + (d.source ? ' via ' + d.source : '')); }
+    else { $(field).placeholder = 'none'; log('BPM', 'no BPM on file for ' + title + ', type it in'); }
+  } catch (e) { $(field).placeholder = 'none'; }
+  renderRatio(); renderSmashHeader();
+}
+
+/* tune search */
+async function findTune() {
+  const q = $('tuneInput').value.trim();
+  if (!q) return;
+  $('tuneResults').innerHTML = '<div class="resultRow"><span class="rs">SEARCHING</span></div>';
+  const inst = $('instOnly').checked;
+  const finalQ = inst && !/instrumental/i.test(q) ? q + ' instrumental' : q;
+  let d = null;
+  try { d = await (await fetch('/api/youtube-search?q=' + encodeURIComponent(finalQ))).json(); } catch (e) {}
+  let rows = d && d.results ? d.results : [];
+  if (inst) {
+    const tagged = rows.filter(r => /instrumental|beat|karaoke|no vocals/i.test(decodeHtml(r.title)));
+    if (tagged.length) rows = tagged;
+  }
+  $('tuneCount').textContent = rows.length ? rows.length + ' FOUND' : '';
+  if (!rows.length) { $('tuneResults').innerHTML = '<div class="resultRow"><span class="rs">' + esc(d && d.error ? d.error : 'NOTHING FOUND') + '</span></div>'; return; }
+  $('tuneResults').innerHTML = '';
+  rows.forEach(r => {
+    const b = document.createElement('button');
+    b.className = 'resultRow';
+    b.innerHTML = (r.thumbnail ? '<img alt="" src="' + esc(r.thumbnail) + '">' : '<img alt="">') +
+      '<div class="rt"><div>' + esc(decodeHtml(r.title)) + '</div><div class="rs">' + esc(decodeHtml(r.channel)) + '</div></div>';
+    b.addEventListener('click', () => pickTune({ videoId: r.videoId, title: decodeHtml(r.title), channel: decodeHtml(r.channel) }));
+    $('tuneResults').appendChild(b);
+  });
+}
+function decodeHtml(s) { const t = document.createElement('textarea'); t.innerHTML = s || ''; return t.value; }
+$('tuneFind').addEventListener('click', findTune);
+$('tuneInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') findTune(); });
+
+function pickTune(t) {
+  tune = t;
+  store('tune', t);
+  $('tuneResults').innerHTML = '';
+  $('tuneCount').textContent = '';
+  $('tunePicked').innerHTML = esc(t.title) + '<div class="ps">' + esc(t.channel || '') + '</div>';
+  $('tunePicked').classList.add('on');
+  loadTune(false);
+  lookupBpm(t.title, '', 'tuneBpm');
+  renderSmashHeader();
+  log('TUNE', 'loaded ' + t.title);
+}
+
+/* words search */
+async function findWords() {
+  const q = $('wordsInput').value.trim();
+  if (!q) return;
+  $('wordsResults').innerHTML = '<div class="resultRow"><span class="rs">SEARCHING</span></div>';
+  let d = null;
+  try { d = await (await fetch('/api/lyrics?q=' + encodeURIComponent(q))).json(); } catch (e) {}
+  const rows = d && d.results ? d.results : [];
+  $('wordsCount').textContent = rows.length ? rows.length + ' FOUND' : '';
+  if (!rows.length) { $('wordsResults').innerHTML = '<div class="resultRow"><span class="rs">NO TIMED LYRICS FOUND</span></div>'; return; }
+  $('wordsResults').innerHTML = '';
+  rows.forEach(r => {
+    const b = document.createElement('button');
+    b.className = 'resultRow';
+    b.innerHTML = '<div class="rt"><div>' + esc(r.title) + '</div><div class="rs">' + esc(r.artist) + (r.album ? ' / ' + esc(r.album) : '') + ' / ' + fmt(r.durationSeconds) + '</div></div>';
+    b.addEventListener('click', () => pickWords(r));
+    $('wordsResults').appendChild(b);
+  });
+}
+$('wordsFind').addEventListener('click', findWords);
+$('wordsInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') findWords(); });
+
+function pickWords(r) {
+  const lines = parseLrc(r.synced);
+  words = { title: r.title, artist: r.artist, lines, chorus: markChorus(lines), bpm: null };
+  $('wordsResults').innerHTML = '';
+  $('wordsCount').textContent = '';
+  $('wordsPicked').innerHTML = esc(r.title) + '<div class="ps">' + esc(r.artist) + ' / ' + lines.length + ' TIMED LINES</div>';
+  $('wordsPicked').classList.add('on');
+  offsetSec = 0; renderOffset();
+  lastIdx = -2;
+  renderStats(words);
+  lookupBpm(r.title, r.artist, 'wordsBpm').then(() => { words.bpm = parseFloat($('wordsBpm').value) || null; renderStats(words); });
+  renderSmashHeader();
+  log('WORDS', 'loaded ' + lines.length + ' timed lines from ' + r.title);
+}
+$('wordsBpm').addEventListener('change', () => { if (words) { words.bpm = parseFloat($('wordsBpm').value) || null; renderStats(words); } });
+
+/* youtube player, copied from the zone director */
+let ytLoading = false;
+const ytQueue = [];
+function whenYouTubeReady(cb) {
+  if (window.YT && window.YT.Player) { cb(); return; }
+  ytQueue.push(cb);
+  if (ytLoading) return;
+  ytLoading = true;
+  window.onYouTubeIframeAPIReady = function () { ytQueue.splice(0).forEach(f => { try { f(); } catch (err) {} }); };
+  const tag = document.createElement('script');
+  tag.src = 'https://www.youtube.com/iframe_api';
+  document.body.appendChild(tag);
+}
+let player = null, playerReady = false, loadedVideo = null, playerState = -1, wantPlay = false;
+function ensurePlayer(cb) {
+  if (player && playerReady) { cb && cb(); return; }
+  whenYouTubeReady(() => {
+    if (player) { if (cb) readyQueue.push(cb); return; }
+    player = new YT.Player('tunePlayer', {
+      height: '78', width: '139',
+      playerVars: { controls: 0, playsinline: 1, rel: 0, disablekb: 1, fs: 0, iv_load_policy: 3 },
+      events: {
+        onReady: () => { playerReady = true; readyQueue.splice(0).forEach(f => f()); },
+        onStateChange: (e) => { playerState = e.data; renderPlayKey(); if (e.data === 0) { wantPlay = false; log('END', 'tune finished'); } },
+        onError: (e) => { log('TUNE', 'this upload blocks embedded play, error ' + (e && e.data) + ', pick another'); wantPlay = false; renderPlayKey(); }
+      }
+    });
+    if (cb) readyQueue.push(cb);
+  });
+}
+const readyQueue = [];
+function loadTune(autoplay) {
+  if (!tune) return;
+  ensurePlayer(() => {
+    if (loadedVideo !== tune.videoId) {
+      loadedVideo = tune.videoId;
+      if (autoplay) player.loadVideoById(tune.videoId, 0);
+      else player.cueVideoById(tune.videoId, 0);
+    } else if (autoplay) player.playVideo();
+  });
+}
+function pauseTune() { wantPlay = false; try { if (player && player.pauseVideo) player.pauseVideo(); } catch (e) {} renderPlayKey(); }
+const ICON_PLAY = '<svg viewBox="0 0 24 24"><path d="M7 5v14l12-7z"/></svg>';
+const ICON_PAUSE = '<svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>';
+function renderPlayKey() {
+  const playing = playerState === 1;
+  $('playBtn').innerHTML = playing ? ICON_PAUSE : ICON_PLAY;
+  $('playLabel').textContent = playing ? 'PAUSE' : 'PLAY';
+  $('tuneSlot').classList.toggle('on', playing || playerState === 2 || playerState === 3);
+  if (mode === 'smash') setLink(playing ? 'ok' : (playerState === 3 ? 'busy' : ''), playing ? 'SMASHING' : (playerState === 3 ? 'LOADING' : 'STANDBY'));
+}
+$('playBtn').addEventListener('click', () => {
+  if (!tune) { log('PLAY', 'pick a tune first'); return; }
+  if (playerState === 1) { pauseTune(); return; }
+  wantPlay = true;
+  loadTune(true);
+  if (!words) log('PLAY', 'tune only, pick words to smash on top');
+});
+
+function smashTick() {
+  if (mode !== 'smash' || !player || !playerReady || typeof player.getCurrentTime !== 'function') return;
+  let t = 0, dur = 0;
+  try { t = player.getCurrentTime() || 0; dur = player.getDuration() || 0; } catch (e) { return; }
+  $('elapsed').textContent = fmt(t);
+  $('remaining').textContent = dur ? '-' + fmt(dur - t) : '-0:00';
+  $('progress').style.width = dur ? Math.min(100, t / dur * 100) + '%' : '0%';
+  if (words) showLyrics(words.lines, (t - offsetSec) * ratio());
+}
+
+/* ===== LIVE KARAOKE MODE ===== */
+let stream = null, busy = false, karaokeTimer = null, live = null, knMs = 0;
+function syncState(t) { $('syncState').textContent = t; }
+function renderKaraokeHeader() {
+  if (mode !== 'karaoke') return;
+  $('title').textContent = live ? live.title : 'Tap listen';
+  $('artist').textContent = live ? live.artist : 'Hold the phone near the speaker';
+  $('lcdTag').textContent = live ? (live.lines.length ? 'LOCKED' : 'NO LYRICS') : 'NOT LISTENING';
+  const bits = [];
+  if (live && live.bpm) bits.push(Math.round(live.bpm) + ' BPM');
+  if (live && live.key) bits.push('KEY ' + live.key);
+  if (live) bits.push(live.lines.length + ' LINES');
+  $('meta').textContent = bits.length ? bits.join(' / ') : '--';
+}
+function renderKn() { $('knVal').textContent = (knMs >= 0 ? '+' : '') + knMs + ' ms'; }
+document.querySelectorAll('[data-kn]').forEach(b => b.addEventListener('click', () => {
+  const d = parseInt(b.getAttribute('data-kn'), 10);
+  knMs = d === 0 ? 0 : knMs + d;
+  renderKn(); lastIdx = -2;
+}));
+
+async function openMic() {
+  if (stream) return true;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+    return true;
+  } catch (e) {
+    log('MIC', 'microphone refused, allow it and tap listen again');
+    return false;
+  }
+}
+function recordClip() {
+  return new Promise((resolve) => {
+    const chunks = [];
+    const mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
+    const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+    rec.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+    rec.onstop = () => resolve(new Blob(chunks, { type: rec.mimeType || 'audio/webm' }));
+    rec.start();
+    setTimeout(() => rec.stop(), CLIP_MS);
+  });
+}
+function livePos() { return live ? live.offsetSeconds + (now() - live.epochMs) / 1000 + knMs / 1000 : 0; }
+
+async function identify() {
+  if (busy || mode !== 'karaoke') return;
+  if (!(await openMic())) return;
+  busy = true;
+  if (karaokeTimer) { clearTimeout(karaokeTimer); karaokeTimer = null; }
+  syncState('LISTENING');
+  setLink('busy', 'LISTENING');
+  $('listenLabel').textContent = 'LISTENING';
+  const capturedAt = now();
+  const blob = await recordClip();
+  let data = null;
+  try {
+    const form = new FormData();
+    form.append('audio', blob, 'clip.webm');
+    form.append('capturedAt', String(capturedAt));
+    form.append('clipDurationMs', String(CLIP_MS));
+    data = await (await fetch('/api/recognize', { method: 'POST', body: form })).json();
+  } catch (e) { data = { error: 'network' }; }
+  busy = false;
+  $('listenLabel').textContent = 'LISTEN';
+
+  if (!data || data.error || typeof data.offsetSeconds !== 'number') {
+    syncState(live ? 'HELD' : 'NO MATCH');
+    setLink(live ? 'ok' : '', live ? 'LOCKED' : 'NO MATCH');
+    log('LISTEN', data && data.error ? data.error : 'no match, retrying');
+    scheduleListen(live ? 30000 : 15000);
+    return;
+  }
+
+  const sameSong = live && normLine(live.title) === normLine(data.title);
+  if (sameSong) {
+    live.offsetSeconds = data.offsetSeconds;
+    live.epochMs = data.epochMs;
+  } else {
+    live = { title: data.title, artist: data.artist, offsetSeconds: data.offsetSeconds, epochMs: data.epochMs, bpm: data.bpm, key: data.key, lines: [], chorus: [], durationSeconds: null };
+    lastIdx = -2;
+    clearLyrics();
+    renderKaraokeHeader();
+    log('LOCK', data.title + ', pulling lyrics');
+    try {
+      const d = await (await fetch('/api/lyrics?title=' + encodeURIComponent(data.title) + '&artist=' + encodeURIComponent(data.artist))).json();
+      const hit = d && d.results && d.results[0];
+      if (hit) {
+        live.lines = parseLrc(hit.synced);
+        live.chorus = markChorus(live.lines);
+        live.durationSeconds = hit.durationSeconds || null;
+      }
+    } catch (e) {}
+    if (!live.lines.length) log('LYRICS', 'no timed lyrics on file for ' + data.title);
+  }
+  syncState('ALIGNED');
+  setLink('ok', 'LOCKED');
+  renderKaraokeHeader();
+  renderStats(live);
+  const left = live.durationSeconds ? live.durationSeconds - livePos() : 0;
+  scheduleListen(left > 0 ? left * 1000 + 4000 : 90000);
+}
+function scheduleListen(ms) {
+  if (karaokeTimer) clearTimeout(karaokeTimer);
+  karaokeTimer = null;
+  if (!$('followToggle').checked || mode !== 'karaoke') return;
+  karaokeTimer = setTimeout(identify, Math.max(ms, 8000));
+}
+$('listenBtn').addEventListener('click', identify);
+$('followToggle').addEventListener('change', () => { if (!$('followToggle').checked && karaokeTimer) { clearTimeout(karaokeTimer); karaokeTimer = null; } });
+
+function karaokeTick() {
+  if (mode !== 'karaoke' || !live) return;
+  const t = livePos();
+  const dur = live.durationSeconds;
+  $('elapsed').textContent = fmt(t);
+  $('remaining').textContent = dur ? '-' + fmt(dur - t) : '-0:00';
+  $('progress').style.width = dur ? Math.min(100, t / dur * 100) + '%' : '0%';
+  showLyrics(live.lines, t);
+}
+
+/* main loop */
+setInterval(() => { if (mode === 'smash') smashTick(); else karaokeTick(); }, 100);
+
+/* restore last tune */
+renderOffset(); renderRatio(); renderKn();
+if (tune) {
+  $('tunePicked').innerHTML = esc(tune.title) + '<div class="ps">' + esc(tune.channel || '') + '</div>';
+  $('tunePicked').classList.add('on');
+  lookupBpm(tune.title, '', 'tuneBpm');
+}
+renderSmashHeader();
+renderPlayKey();
+</script>
+</body>
+</html>

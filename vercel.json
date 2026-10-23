@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    { "source": "/api/time", "destination": "https://offset-listener.vercel.app/api/time" },
+    { "source": "/api/recognize", "destination": "https://offset-listener.vercel.app/api/recognize" },
+    { "source": "/api/youtube-search", "destination": "https://offset-listener.vercel.app/api/youtube-search" },
+    { "source": "/api/bpm", "destination": "https://offset-listener.vercel.app/api/bpm-lookup" }
+  ]
+}
