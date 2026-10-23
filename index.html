@@ -276,6 +276,9 @@
   </div>
   <div class="card">
     <div class="cardTitle"><span>Donor suggestions</span><span class="mono" id="liveSugTag">SAME BPM</span></div>
+    <div class="searchRow"><input id="liveSearch" placeholder="Song, artist, or a BPM like 120"><button class="sbtn" id="liveFind">Find</button></div>
+    <div class="toggleRow"><span>Songs at the live BPM</span><button class="seg" id="liveBpmFind">SEARCH LIVE BPM</button></div>
+    <input type="hidden" id="liveBpmNow">
     <div id="liveSug"><div class="resultRow"><span class="rs">Suggestions show up once a song is locked</span></div></div>
   </div>
   <div class="card">
@@ -1246,6 +1249,7 @@ async function liveIdentify() {
     liveSong = { title: data.title, artist: data.artist, offsetSeconds: data.offsetSeconds, epochMs: data.epochMs, bpm: data.bpm || null, key: data.key || null, durationSeconds: data.videoDurationSeconds || null };
     if (!liveSong.bpm) liveSong.bpm = await bpmFor(data.title, data.artist);
     if (liveSong.bpm) { bpmCache[(data.title + '|' + data.artist).toLowerCase()] = liveSong.bpm; store('bpm', bpmCache); }
+    $('liveBpmNow').value = liveSong.bpm || '';
     donor = null; donorAca = null; liveDropAt = null; liveRateSet = null;
     pauseAca();
     clearLyrics();
@@ -1318,8 +1322,19 @@ async function findDonors() {
       out.push({ title: clean, artist: a || '', bpm });
     });
   }
+  if (live.bpm && out.length < 8) {
+    try {
+      const d = await (await fetch('/api/song-search?bpm=' + live.bpm + '&spread=2')).json();
+      (d && d.results ? d.results : []).forEach(r => {
+        const n = normLine(r.title);
+        if (!n || seen.has(n) || out.length >= 20) return;
+        seen.add(n);
+        out.push({ title: r.title, artist: r.artist, album: r.album, bpm: null, nearBpm: live.bpm });
+      });
+    } catch (e) {}
+  }
   if (live !== liveSong) return;
-  out.forEach(o => { o.gap = live.bpm ? bpmGap(o.bpm, live.bpm) : null; });
+  out.forEach(o => { o.gap = live.bpm && o.bpm ? bpmGap(o.bpm, live.bpm) : null; });
   out.sort((x, y) => (x.gap ? Math.abs(x.gap.pct) : 99) - (y.gap ? Math.abs(y.gap.pct) : 99));
   $('liveSugTag').textContent = out.length ? out.length + ' MATCHES' : 'NONE YET';
   if (!out.length) {
@@ -1327,15 +1342,57 @@ async function findDonors() {
     return;
   }
   $('liveSug').innerHTML = '';
-  out.slice(0, 12).forEach(o => {
-    const b = document.createElement('button');
-    b.className = 'resultRow';
-    b.innerHTML = '<div class="rt"><div>' + esc(o.title) + '</div><div class="rs">' + esc(o.artist) + '</div></div><span class="bpmTag ' + (o.gap ? o.gap.cls : '') + '">' + Math.round(o.bpm) + ' BPM' + (o.gap ? '<br>' + esc(o.gap.text) : '') + '</span>';
-    b.addEventListener('click', () => pickDonor(o));
-    $('liveSug').appendChild(b);
-  });
-  pickDonor(out[0]);
+  out.slice(0, 20).forEach(o => $('liveSug').appendChild(donorRow(o)));
+  const first = out[0];
+  pickDonor({ title: first.title, artist: first.artist, bpm: first.bpm || first.nearBpm || null });
 }
+
+function donorRow(o) {
+  const b = document.createElement('button');
+  b.className = 'resultRow';
+  b.innerHTML = '<div class="rt"><div>' + esc(o.title) + '</div><div class="rs">' + esc(o.artist) + (o.album ? ' / ' + esc(o.album) : '') + '</div></div>';
+  if (o.bpm) {
+    const g = liveSong && liveSong.bpm ? bpmGap(o.bpm, liveSong.bpm) : null;
+    const tag = document.createElement('span');
+    tag.className = 'bpmTag' + (g ? ' ' + g.cls : '');
+    tag.innerHTML = Math.round(o.bpm) + ' BPM' + (g ? '<br>' + esc(g.text) : '');
+    b.appendChild(tag);
+    b.dataset.bpm = String(o.bpm);
+    b.dataset.gap = g ? String(Math.abs(g.pct)) : '999';
+  } else {
+    tagRow(b, o.title, o.artist, 'liveBpmNow');
+  }
+  b.addEventListener('click', () => pickDonor({ title: o.title, artist: o.artist, bpm: b.dataset.bpm ? parseFloat(b.dataset.bpm) : null }));
+  return b;
+}
+async function liveSongSearch(text, bpm) {
+  $('liveSug').innerHTML = '<div class="resultRow"><span class="rs">SEARCHING' + (bpm ? ' AROUND ' + Math.round(bpm) + ' BPM' : '') + '</span></div>';
+  let d = null;
+  try { d = await (await fetch('/api/song-search?' + (text ? 'q=' + encodeURIComponent(text) + '&' : '') + (bpm ? 'bpm=' + bpm + '&spread=2' : ''))).json(); } catch (e) {}
+  const rows = (d && d.results ? d.results : []).filter(r => !liveSong || normLine(r.title) !== normLine(liveSong.title));
+  $('liveSugTag').textContent = rows.length ? rows.length + ' FOUND' : 'NONE FOUND';
+  if (!rows.length) { $('liveSug').innerHTML = '<div class="resultRow"><span class="rs">' + esc(d && d.error ? d.error : 'Nothing found, try other words or a nearby BPM') + '</span></div>'; return; }
+  $('liveSug').innerHTML = '';
+  const jobs = [];
+  rows.slice(0, 25).forEach(r => {
+    const row = donorRow(r);
+    $('liveSug').appendChild(row);
+  });
+  setTimeout(() => sortByGap('liveSug'), 4000);
+}
+function runLiveSearch() {
+  const q = $('liveSearch').value.trim();
+  if (!q) return;
+  const m = q.match(/^(\d{2,3}(?:\.\d+)?)\s*(bpm)?$/i);
+  if (m) liveSongSearch('', parseFloat(m[1]));
+  else liveSongSearch(q, null);
+}
+$('liveFind').addEventListener('click', runLiveSearch);
+$('liveSearch').addEventListener('keydown', (e) => { if (e.key === 'Enter') runLiveSearch(); });
+$('liveBpmFind').addEventListener('click', () => {
+  if (!liveSong || !liveSong.bpm) { log('SEARCH', 'listen and lock a song with a BPM first, or type a BPM'); return; }
+  liveSongSearch('', liveSong.bpm);
+});
 
 async function pickDonor(o) {
   donor = { title: o.title, artist: o.artist, bpm: o.bpm, lines: [], chorus: [] };
@@ -1343,7 +1400,7 @@ async function pickDonor(o) {
   pauseAca();
   const g = liveSong && liveSong.bpm ? bpmGap(o.bpm, liveSong.bpm) : null;
   const fold = g && /DOUBLE/.test(g.note) ? 2 : g && /HALF/.test(g.note) ? 0.5 : 1;
-  liveRate = liveSong && liveSong.bpm ? liveSong.bpm / (o.bpm * fold) : 1;
+  liveRate = liveSong && liveSong.bpm && o.bpm ? liveSong.bpm / (o.bpm * fold) : 1;
   renderLiveHeader();
   log('DONOR', o.title + ', pulling the acapella and lyrics');
   try {
