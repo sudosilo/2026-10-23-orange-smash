@@ -833,6 +833,8 @@ function syncAca(tuneT) {
   let at = 0;
   try { at = acaPlayer.getCurrentTime() || 0; } catch (e) { return; }
   try {
+    const acaDur = acaPlayer.getDuration() || 0;
+    if (acaDur && target >= acaDur - 0.3) { if (acaState === 1) pauseAca(); return; }
     if (Math.abs(at - target) > 0.35) acaPlayer.seekTo(target, true);
     if (acaState !== 1 && acaState !== 3) acaPlayer.playVideo();
   } catch (e) {}
@@ -1289,7 +1291,9 @@ function liveTick() {
   if (liveWantPlay && liveInst && $('liveInstOn').checked && playerReady && doSync) {
     try {
       const at = player.getCurrentTime() || 0;
-      if (Math.abs(at - pos) > 0.4 || (playerState !== 1 && playerState !== 3)) { player.seekTo(Math.max(0, pos), true); if (playerState !== 1) player.playVideo(); }
+      const instDur = player.getDuration() || 0;
+      if (instDur && pos >= instDur - 0.5) { if (playerState === 1) player.pauseVideo(); }
+      else if (Math.abs(at - pos) > 0.4 || (playerState !== 1 && playerState !== 3)) { player.seekTo(Math.max(0, pos), true); if (playerState !== 1) player.playVideo(); }
     } catch (e) {}
   } else if ((!liveWantPlay || !$('liveInstOn').checked) && playerState === 1) { try { player.pauseVideo(); } catch (e) {} }
 
@@ -1314,8 +1318,12 @@ function liveTick() {
       if (doSync) {
         try {
           const at = acaPlayer.getCurrentTime() || 0;
-          if (Math.abs(at - target) > 0.35) acaPlayer.seekTo(Math.max(0, target), true);
-          if (acaState !== 1 && acaState !== 3) acaPlayer.playVideo();
+          const acaDur = acaPlayer.getDuration() || 0;
+          if (acaDur && target >= acaDur - 0.3) { if (acaState === 1) pauseAca(); $('liveAcaTag').textContent = 'FINISHED'; }
+          else {
+            if (Math.abs(at - target) > 0.35) acaPlayer.seekTo(Math.max(0, target), true);
+            if (acaState !== 1 && acaState !== 3) acaPlayer.playVideo();
+          }
         } catch (e) {}
       }
       showLyrics(donor.lines, target - liveShift);
