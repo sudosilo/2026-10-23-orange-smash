@@ -214,6 +214,13 @@
   </div>
 
   <div class="card">
+    <div class="cardTitle"><span>Snap</span><span class="mono" id="snapTag">OFF GRID</span></div>
+    <div class="toggleRow"><span>Snap to the beat</span><input type="checkbox" id="snapOn" checked></div>
+    <div class="toggleRow"><span>Snap size</span><span class="ctl"><button class="seg" data-snap="0.5">HALF</button><button class="seg on" data-snap="1">BEAT</button><button class="seg" data-snap="4">BAR</button></span></div>
+    <div class="toggleRow"><span>Beat one</span><span class="ctl"><button class="seg" data-ph="-0.02">-</button><span class="mono readout" id="phaseVal">0.00 s</span><button class="seg" data-ph="0.02">+</button><button class="seg" id="beatOneBtn">SET</button></span></div>
+  </div>
+
+  <div class="card">
     <div class="cardTitle"><span>Acapella</span><span class="mono" id="acaTag">PICK WORDS FIRST</span></div>
     <div class="toggleRow"><span>Play the acapella</span><input type="checkbox" id="acaOn" checked></div>
     <div class="toggleRow"><span>Start from</span><select class="cueSel" id="cueSel"><option value="0">0:00 top of the song</option></select></div>
@@ -405,6 +412,7 @@ function renderRatio() {
   const g = bpmGap(parseFloat($('wordsBpm').value), parseFloat($('tuneBpm').value));
   $('gapVal').className = 'mono gapVal' + (g ? ' ' + g.cls : '');
   $('gapVal').textContent = g ? g.text : '--';
+  renderPhase();
 }
 
 /* bpm for every song that shows up in a list, cached on this phone */
@@ -466,7 +474,11 @@ document.querySelectorAll('[data-fold]').forEach(b => b.addEventListener('click'
   document.querySelectorAll('[data-fold]').forEach(x => x.classList.toggle('on', x === b));
   renderRatio(); renderSmashHeader();
 }));
-function quarterBeat() { const tb = parseFloat($('tuneBpm').value); return tb > 0 ? 60 / tb / 4 : 0.25; }
+function quarterBeat() {
+  const tb = parseFloat($('tuneBpm').value);
+  if (!(tb > 0)) return 0.25;
+  return snapReady() ? 60 / tb * snapMult : 60 / tb / 4;
+}
 $('backBtn').addEventListener('click', () => { offsetSec -= quarterBeat(); renderOffset(); lastIdx = -2; log('NUDGE', 'words land earlier'); });
 $('fwdBtn').addEventListener('click', () => { offsetSec += quarterBeat(); renderOffset(); lastIdx = -2; log('NUDGE', 'words land later'); });
 $('offsetReset').addEventListener('click', () => { offsetSec = 0; renderOffset(); lastIdx = -2; });
@@ -532,6 +544,7 @@ $('tuneInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') findT
 function pickTune(t) {
   tune = t;
   store('tune', t);
+  loadPhase();
   $('tuneResults').innerHTML = '';
   $('tuneCount').textContent = '';
   $('tunePicked').innerHTML = esc(t.title) + '<div class="ps">' + esc(t.channel || '') + '</div>';
@@ -640,6 +653,9 @@ function renderPlayKey() {
 $('playBtn').addEventListener('click', () => {
   if (!tune) { log('PLAY', 'pick a tune first'); return; }
   if (playerState === 1) { pauseTune(); return; }
+  if (snapReady() && playerState === 2) {
+    try { const t = player.getCurrentTime() || 0; player.seekTo(Math.max(0, snapFloor(t)), true); } catch (e) {}
+  }
   wantPlay = true;
   loadTune(true);
   if (aca && !armed && $('acaOn').checked && acaReady) { try { acaPlayer.playVideo(); } catch (e) {} }
@@ -653,6 +669,11 @@ function smashTick() {
   $('elapsed').textContent = fmt(t);
   $('remaining').textContent = dur ? '-' + fmt(dur - t) : '-0:00';
   $('progress').style.width = dur ? Math.min(100, t / dur * 100) + '%' : '0%';
+  if (snapReady() && playerState === 1) {
+    const beat = 60 / parseFloat($('tuneBpm').value);
+    const n = Math.floor((t - gridPhase) / beat + 1e-6);
+    $('lcdTag').textContent = n < 0 ? 'COUNT IN' : 'BAR ' + (Math.floor(n / 4) + 1) + ' BEAT ' + ((n % 4) + 1);
+  }
   if (words && armed) showArmed();
   else if (words) showLyrics(words.lines, (t - offsetSec) * ratio());
   syncAca(t);
@@ -760,6 +781,42 @@ $('acaOn').addEventListener('change', () => {
   else if (playerState === 1 && aca && acaReady) { try { acaPlayer.playVideo(); } catch (e) {} }
 });
 
+/* snap: a beat grid from the tune BPM, anchored on beat one */
+let snapMult = 1, gridPhase = 0;
+function snapReady() { return $('snapOn').checked && parseFloat($('tuneBpm').value) > 0; }
+function snapUnit() { return 60 / parseFloat($('tuneBpm').value) * snapMult; }
+function snapNearest(t) { const u = snapUnit(); return gridPhase + Math.round((t - gridPhase) / u) * u; }
+function snapFloor(t) { const u = snapUnit(); return gridPhase + Math.floor((t - gridPhase) / u + 1e-6) * u; }
+function renderPhase() {
+  $('phaseVal').textContent = gridPhase.toFixed(2) + ' s';
+  const step = snapReady() ? (snapMult === 0.5 ? '1/2' : snapMult === 4 ? 'BAR' : '1') : '1/4';
+  $('backBtn').textContent = '-' + step;
+  $('fwdBtn').textContent = '+' + step;
+  $('snapTag').textContent = !$('snapOn').checked ? 'OFF' : (parseFloat($('tuneBpm').value) > 0 ? (snapMult === 0.5 ? 'HALF BEAT' : snapMult === 4 ? 'BAR' : 'BEAT') + ' GRID' : 'NEEDS TUNE BPM');
+}
+function savePhase() { if (tune) { const m = recall('phase') || {}; m[tune.videoId] = gridPhase; store('phase', m); } }
+function loadPhase() { const m = recall('phase') || {}; gridPhase = tune && typeof m[tune.videoId] === 'number' ? m[tune.videoId] : 0; renderPhase(); }
+document.querySelectorAll('[data-snap]').forEach(b => b.addEventListener('click', () => {
+  snapMult = parseFloat(b.getAttribute('data-snap'));
+  document.querySelectorAll('[data-snap]').forEach(x => x.classList.toggle('on', x === b));
+  renderPhase();
+}));
+document.querySelectorAll('[data-ph]').forEach(b => b.addEventListener('click', () => {
+  gridPhase = Math.max(0, Math.round((gridPhase + parseFloat(b.getAttribute('data-ph'))) * 100) / 100);
+  renderPhase(); savePhase();
+}));
+$('beatOneBtn').addEventListener('click', () => {
+  if (playerState !== 1) { log('BEAT ONE', 'play the tune and tap set right on a downbeat'); return; }
+  let t = 0;
+  try { t = player.getCurrentTime() || 0; } catch (e) {}
+  const bar = 60 / (parseFloat($('tuneBpm').value) || 120) * 4;
+  gridPhase = Math.round((t % bar) * 100) / 100;
+  renderPhase(); savePhase();
+  log('BEAT ONE', 'grid anchored, bar counter is on the screen');
+});
+$('snapOn').addEventListener('change', renderPhase);
+$('tuneBpm').addEventListener('input', renderPhase);
+
 /* cue and drop: hold the acapella, then drop it on the beat you pick */
 let armed = false, cueT = 0, acaShift = 0, acaParkedAt = null;
 function buildCueList(lines) {
@@ -811,14 +868,16 @@ $('dropBtn').addEventListener('click', () => {
   if (playerState !== 1) { log('DROP', 'start the tune first, then drop on the beat'); return; }
   let t = 0;
   try { t = player.getCurrentTime() || 0; } catch (e) {}
-  offsetSec = t - cueT / ratio();
+  const landAt = snapReady() ? snapNearest(t) : t;
+  offsetSec = landAt - cueT / ratio();
   renderOffset();
   setArmed(false);
   acaLastSync = 0;
   if (aca && acaReady && $('acaOn').checked) {
-    try { acaPlayer.seekTo(Math.max(0, cueT + acaShift), true); acaPlayer.playVideo(); } catch (e) {}
+    const start = (t - offsetSec) * ratio() + acaShift;
+    try { acaPlayer.seekTo(Math.max(0, start), true); acaPlayer.playVideo(); } catch (e) {}
   }
-  log('DROP', 'acapella dropped at ' + fmt(t) + ' of the tune, nudge with earlier and later');
+  log('DROP', 'acapella dropped at ' + fmt(landAt) + (landAt !== t ? ', snapped ' + Math.round((landAt - t) * 1000) + ' ms' : '') + ', nudge with earlier and later');
 });
 
 /* ===== LIVE KARAOKE MODE ===== */
@@ -945,7 +1004,7 @@ function karaokeTick() {
 setInterval(() => { if (mode === 'smash') smashTick(); else karaokeTick(); }, 100);
 
 /* restore last tune */
-renderOffset(); renderRatio(); renderKn(); renderAs(); setArmed(false);
+renderOffset(); renderRatio(); renderKn(); renderAs(); setArmed(false); loadPhase();
 if (tune) {
   $('tunePicked').innerHTML = esc(tune.title) + '<div class="ps">' + esc(tune.channel || '') + '</div>';
   $('tunePicked').classList.add('on');
