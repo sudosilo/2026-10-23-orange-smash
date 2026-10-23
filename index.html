@@ -479,6 +479,7 @@ function renderRatio() {
 
 /* bpm for every song that shows up in a list, cached on this phone */
 let bpmCache = recall('bpm') || {};
+Object.keys(bpmCache).forEach(k => { if (!bpmCache[k]) delete bpmCache[k]; });
 const bpmJobs = [];
 let bpmRunning = false;
 function splitYt(title, channel) {
@@ -503,8 +504,7 @@ async function runBpmJobs() {
       try {
         const d = await (await fetch('/api/bpm?title=' + encodeURIComponent(job.title) + '&artist=' + encodeURIComponent(job.artist || ''))).json();
         v = d && d.bpm ? d.bpm : null;
-        bpmCache[job.k] = v;
-        store('bpm', bpmCache);
+        if (v) { bpmCache[job.k] = v; store('bpm', bpmCache); }
       } catch (e) {}
     }
     job.resolve(v);
