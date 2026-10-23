@@ -119,6 +119,13 @@
   .stat span:last-child { font-family: ui-monospace, Menlo, monospace; }
   .chorusText { margin-top: 8px; font-size: 12px; color: var(--ink-soft); line-height: 1.5; }
 
+  .acaRow { display: flex; gap: 10px; align-items: center; margin-top: 8px; }
+  .acaBox { width: 78px; height: 78px; border-radius: 6px; background: var(--lcd-edge); flex: none; overflow: hidden; position: relative; }
+  .acaBox iframe { position: absolute; top: 0; left: 50%; width: 139px; height: 78px; transform: translateX(-50%); border: 0; pointer-events: none; }
+  #acaInfo { flex: 1; min-width: 0; font-size: 13px; }
+  #acaInfo .rs { font-size: 10px; letter-spacing: 1px; color: var(--ink-faint); margin-top: 2px; }
+  input[type=range] { accent-color: var(--ink); }
+
   .hide { display: none !important; }
 </style>
 </head>
@@ -192,6 +199,14 @@
     <div class="toggleRow"><span>Words BPM</span><input class="numIn" id="wordsBpm" type="number" step="0.1" inputmode="decimal"></div>
     <div class="toggleRow"><span>Words tempo</span><span class="ctl"><button class="seg" data-fold="0.5">HALF</button><button class="seg on" data-fold="1">1X</button><button class="seg" data-fold="2">DOUBLE</button></span></div>
     <div class="toggleRow"><span>Words start</span><span class="ctl"><span class="mono readout" id="offsetVal">+0.00 s</span><button class="seg" id="offsetReset">RST</button></span></div>
+  </div>
+
+  <div class="card">
+    <div class="cardTitle"><span>Acapella</span><span class="mono" id="acaTag">PICK WORDS FIRST</span></div>
+    <div class="toggleRow"><span>Play the acapella</span><input type="checkbox" id="acaOn" checked></div>
+    <div class="toggleRow"><span>Acapella level</span><input type="range" id="acaVol" min="0" max="100" value="100" style="width:150px;"></div>
+    <div class="acaRow"><div class="acaBox"><div id="acaPlayer"></div></div><div id="acaInfo"><span style="color:var(--ink-faint)">Pick words and the vocal only version loads here</span></div></div>
+    <div id="acaResults" style="margin-top:6px;"></div>
   </div>
 </div>
 
@@ -471,6 +486,7 @@ function pickWords(r) {
   offsetSec = 0; renderOffset();
   lastIdx = -2;
   renderStats(words);
+  findAcapella(r.title, r.artist);
   lookupBpm(r.title, r.artist, 'wordsBpm').then(() => { words.bpm = parseFloat($('wordsBpm').value) || null; renderStats(words); });
   renderSmashHeader();
   log('WORDS', 'loaded ' + lines.length + ' timed lines from ' + r.title);
@@ -518,7 +534,7 @@ function loadTune(autoplay) {
     } else if (autoplay) player.playVideo();
   });
 }
-function pauseTune() { wantPlay = false; try { if (player && player.pauseVideo) player.pauseVideo(); } catch (e) {} renderPlayKey(); }
+function pauseTune() { wantPlay = false; try { if (player && player.pauseVideo) player.pauseVideo(); } catch (e) {} pauseAca(); renderPlayKey(); }
 const ICON_PLAY = '<svg viewBox="0 0 24 24"><path d="M7 5v14l12-7z"/></svg>';
 const ICON_PAUSE = '<svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>';
 function renderPlayKey() {
@@ -533,6 +549,7 @@ $('playBtn').addEventListener('click', () => {
   if (playerState === 1) { pauseTune(); return; }
   wantPlay = true;
   loadTune(true);
+  if (aca && $('acaOn').checked && acaReady) { try { acaPlayer.playVideo(); } catch (e) {} }
   if (!words) log('PLAY', 'tune only, pick words to smash on top');
 });
 
@@ -544,7 +561,103 @@ function smashTick() {
   $('remaining').textContent = dur ? '-' + fmt(dur - t) : '-0:00';
   $('progress').style.width = dur ? Math.min(100, t / dur * 100) + '%' : '0%';
   if (words) showLyrics(words.lines, (t - offsetSec) * ratio());
+  syncAca(t);
 }
+
+/* acapella: the vocal only upload of the words song, held to the same clock as the lyrics */
+let aca = null, acaPlayer = null, acaReady = false, acaLoaded = null, acaState = -1, acaRateSet = null, acaLastSync = 0;
+const acaReadyQueue = [];
+const ACA_WORDS = /acapella|a cappella|a capella|acappella|vocals? only|isolated vocals?|voice only|studio vocals?/i;
+
+function ensureAcaPlayer(cb) {
+  if (acaPlayer && acaReady) { cb && cb(); return; }
+  if (cb) acaReadyQueue.push(cb);
+  whenYouTubeReady(() => {
+    if (acaPlayer) return;
+    acaPlayer = new YT.Player('acaPlayer', {
+      height: '78', width: '139',
+      playerVars: { controls: 0, playsinline: 1, rel: 0, disablekb: 1, fs: 0, iv_load_policy: 3 },
+      events: {
+        onReady: () => { acaReady = true; try { acaPlayer.setVolume(+$('acaVol').value); } catch (e) {} acaReadyQueue.splice(0).forEach(f => f()); },
+        onStateChange: (e) => { acaState = e.data; },
+        onError: (e) => { $('acaTag').textContent = 'BLOCKED'; log('ACAPELLA', 'this upload blocks embedded play, pick another below'); }
+      }
+    });
+  });
+}
+
+async function findAcapella(title, artist) {
+  aca = null; acaLoaded = null; acaRateSet = null;
+  pauseAca();
+  $('acaTag').textContent = 'SEARCHING';
+  $('acaResults').innerHTML = '';
+  $('acaInfo').innerHTML = '<span style="color:var(--ink-faint)">Looking for a vocal only version</span>';
+  let d = null;
+  try { d = await (await fetch('/api/youtube-search?q=' + encodeURIComponent(title + ' ' + artist + ' acapella'))).json(); } catch (e) {}
+  const rows = (d && d.results ? d.results : []).filter(r => ACA_WORDS.test(decodeHtml(r.title)));
+  if (!rows.length) {
+    $('acaTag').textContent = 'NONE FOUND';
+    $('acaInfo').innerHTML = '<span style="color:var(--ink-faint)">No vocal only upload found for this song</span>';
+    return;
+  }
+  pickAca(rows[0]);
+  rows.slice(1, 6).forEach(r => {
+    const b = document.createElement('button');
+    b.className = 'resultRow';
+    b.innerHTML = (r.thumbnail ? '<img alt="" src="' + esc(r.thumbnail) + '">' : '<img alt="">') +
+      '<div class="rt"><div>' + esc(decodeHtml(r.title)) + '</div><div class="rs">' + esc(decodeHtml(r.channel)) + '</div></div>';
+    b.addEventListener('click', () => pickAca(r));
+    $('acaResults').appendChild(b);
+  });
+}
+
+function pickAca(r) {
+  aca = { videoId: r.videoId, title: decodeHtml(r.title), channel: decodeHtml(r.channel) };
+  acaRateSet = null;
+  $('acaInfo').innerHTML = esc(aca.title) + '<div class="rs">' + esc(aca.channel) + '</div>';
+  $('acaTag').textContent = 'LOADED';
+  ensureAcaPlayer(() => {
+    if (acaLoaded !== aca.videoId) { acaLoaded = aca.videoId; acaPlayer.cueVideoById(aca.videoId, 0); }
+  });
+  log('ACAPELLA', 'loaded ' + aca.title);
+}
+
+function pauseAca() { try { if (acaPlayer && acaReady) acaPlayer.pauseVideo(); } catch (e) {} }
+
+function nearestRate(want) {
+  let rates = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+  try { const r = acaPlayer.getAvailablePlaybackRates(); if (r && r.length) rates = r; } catch (e) {}
+  return rates.reduce((best, r) => Math.abs(r - want) < Math.abs(best - want) ? r : best, rates[0]);
+}
+
+function syncAca(tuneT) {
+  if (!aca || !acaReady || !acaPlayer) return;
+  if (!$('acaOn').checked || playerState !== 1) { if (acaState === 1) pauseAca(); return; }
+  const want = ratio();
+  if (acaRateSet !== want) {
+    acaRateSet = want;
+    const r = nearestRate(want);
+    try { acaPlayer.setPlaybackRate(r); } catch (e) {}
+    $('acaTag').textContent = 'RATE ' + r.toFixed(2) + 'X' + (Math.abs(r - want) > 0.01 ? ' NEAR' : '');
+  }
+  const target = (tuneT - offsetSec) * want;
+  const nowMs = Date.now();
+  if (target < 0) { if (acaState === 1) { pauseAca(); try { acaPlayer.seekTo(0, true); } catch (e) {} } return; }
+  if (nowMs - acaLastSync < 500) return;
+  acaLastSync = nowMs;
+  let at = 0;
+  try { at = acaPlayer.getCurrentTime() || 0; } catch (e) { return; }
+  try {
+    if (Math.abs(at - target) > 0.35) acaPlayer.seekTo(target, true);
+    if (acaState !== 1 && acaState !== 3) acaPlayer.playVideo();
+  } catch (e) {}
+}
+
+$('acaVol').addEventListener('input', () => { try { if (acaPlayer && acaReady) acaPlayer.setVolume(+$('acaVol').value); } catch (e) {} });
+$('acaOn').addEventListener('change', () => {
+  if (!$('acaOn').checked) pauseAca();
+  else if (playerState === 1 && aca && acaReady) { try { acaPlayer.playVideo(); } catch (e) {} }
+});
 
 /* ===== LIVE KARAOKE MODE ===== */
 let stream = null, busy = false, karaokeTimer = null, live = null, knMs = 0;
