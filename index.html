@@ -232,6 +232,7 @@
     <div class="toggleRow"><span>Tune BPM</span><input class="numIn" id="tuneBpm" type="number" step="0.1" inputmode="decimal"></div>
     <div class="toggleRow"><span>Words BPM</span><input class="numIn" id="wordsBpm" type="number" step="0.1" inputmode="decimal"></div>
     <div class="toggleRow"><span>How far off</span><span class="mono gapVal" id="gapVal">--</span></div>
+    <div class="toggleRow"><span>Stretch the voice to the beat</span><input type="checkbox" id="stretchOn" checked></div>
     <div class="toggleRow"><span>Words tempo</span><span class="ctl"><button class="seg" data-fold="0.5">HALF</button><button class="seg on" data-fold="1">1X</button><button class="seg" data-fold="2">DOUBLE</button></span></div>
     <div class="toggleRow"><span>Words start</span><span class="ctl"><span class="mono readout" id="offsetVal">+0.00 s</span><button class="seg" id="offsetReset">RST</button></span></div>
   </div>
@@ -249,6 +250,10 @@
     <div class="toggleRow"><span>Start from</span><select class="cueSel" id="cueSel"><option value="0">0:00 top of the song</option></select></div>
     <div class="toggleRow"><span>Acapella shift</span><span class="ctl"><button class="seg" data-as="-0.1">-</button><span class="mono readout" id="asVal">+0.0 s</span><button class="seg" data-as="0.1">+</button><button class="seg" data-as="0">RST</button></span></div>
     <div class="toggleRow"><span>Acapella level</span><input type="range" id="acaVol" min="0" max="100" value="100" style="width:150px;"></div>
+    <div class="toggleRow"><span>Drop at</span><span class="ctl"><input class="numIn" id="dropIn" type="number" step="0.001" inputmode="decimal" placeholder="tap drop"><span class="mono" style="font-size:11px;color:var(--ink-faint)">S</span><button class="seg" id="dropClear">CLEAR</button></span></div>
+    <div class="toggleRow"><span>Fine tune the drop</span><span class="ctl"><button class="seg" data-dt="-0.05">-50</button><button class="seg" data-dt="-0.01">-10</button><button class="seg" data-dt="0.01">+10</button><button class="seg" data-dt="0.05">+50</button><span class="mono" style="font-size:10px;color:var(--ink-faint)">MS</span></span></div>
+    <div class="toggleRow"><span>Start over, everything buffered</span><button class="seg" id="restartBtn">FROM THE TOP</button></div>
+    <div id="dropLog" style="margin-top:4px;"></div>
     <div class="acaRow"><div id="acaInfo"><span style="color:var(--ink-faint)">Pick words and the vocal only version loads here</span></div></div>
     <div id="acaResults" style="margin-top:6px;"></div>
   </div>
@@ -260,6 +265,7 @@
     <div class="toggleRow"><span>Auto follow songs</span><input type="checkbox" id="liveFollow" checked></div>
     <div class="toggleRow"><span>Play the instrumental</span><input type="checkbox" id="liveInstOn" checked></div>
     <div class="toggleRow"><span>Play the donor acapella</span><input type="checkbox" id="liveAcaOn" checked></div>
+    <div class="toggleRow"><span>Stretch the voice to the beat</span><input type="checkbox" id="liveStretch" checked></div>
     <div class="toggleRow"><span>Beat timing</span><span class="ctl"><button class="seg" data-ln="-50">-</button><span class="mono readout" id="lnVal">+0 ms</span><button class="seg" data-ln="50">+</button><button class="seg" data-ln="0">RST</button></span></div>
     <div class="toggleRow"><span>Acapella shift</span><span class="ctl"><button class="seg" data-las="-0.1">-</button><span class="mono readout" id="lasVal">+0.0 s</span><button class="seg" data-las="0.1">+</button><button class="seg" data-las="0">RST</button></span></div>
   </div>
@@ -453,9 +459,16 @@ let fold = 1;
 let offsetSec = 0;
 
 function ratio() {
+  if (!$('stretchOn').checked) return 1;
   const tb = parseFloat($('tuneBpm').value), wb = parseFloat($('wordsBpm').value);
   if (!(tb > 0) || !(wb > 0)) return 1;
   return tb / (wb * fold);
+}
+/* the speed the voice really plays at: YouTube rounds speeds, so the lyrics and drift checks follow the rounded speed */
+function appliedRate() {
+  const want = ratio();
+  if (aca && acaReady && acaPlayer && $('acaOn').checked) return nearestRate(want);
+  return want;
 }
 function bpmGap(bpm, other) {
   if (!(bpm > 0) || !(other > 0)) return null;
@@ -470,7 +483,7 @@ function bpmGap(bpm, other) {
   return best;
 }
 function renderRatio() {
-  $('ratioTag').textContent = ratio().toFixed(3) + 'X';
+  $('ratioTag').textContent = $('stretchOn').checked ? ratio().toFixed(3) + 'X' : 'ORIGINAL SPEED';
   const g = bpmGap(parseFloat($('wordsBpm').value), parseFloat($('tuneBpm').value));
   $('gapVal').className = 'mono gapVal' + (g ? ' ' + g.cls : '');
   $('gapVal').textContent = g ? g.text : '--';
@@ -541,9 +554,15 @@ function quarterBeat() {
   if (!(tb > 0)) return 0.25;
   return snapReady() ? 60 / tb * snapMult : 60 / tb / 4;
 }
-$('backBtn').addEventListener('click', () => { offsetSec -= quarterBeat(); renderOffset(); lastIdx = -2; log('NUDGE', 'words land earlier'); });
-$('fwdBtn').addEventListener('click', () => { offsetSec += quarterBeat(); renderOffset(); lastIdx = -2; log('NUDGE', 'words land later'); });
-$('offsetReset').addEventListener('click', () => { offsetSec = 0; renderOffset(); lastIdx = -2; });
+function nudgeDrop(d) {
+  if (dropAt !== null) setDropAt(dropAt + d, 'nudge');
+  else { offsetSec += d; renderOffset(); }
+  lastIdx = -2; acaLastSync = 0;
+}
+$('backBtn').addEventListener('click', () => { nudgeDrop(-quarterBeat()); log('NUDGE', 'words land earlier'); });
+$('fwdBtn').addEventListener('click', () => { nudgeDrop(quarterBeat()); log('NUDGE', 'words land later'); });
+$('offsetReset').addEventListener('click', () => { offsetSec = 0; setArmed(true); renderOffset(); lastIdx = -2; });
+$('stretchOn').addEventListener('change', () => { acaRateSet = null; renderRatio(); renderSmashHeader(); });
 
 function renderSmashHeader() {
   if (mode !== 'smash') return;
@@ -607,6 +626,7 @@ function pickTune(t) {
   tune = t;
   store('tune', t);
   loadPhase();
+  if (words) loadDropLog();
   $('tuneResults').innerHTML = '';
   $('tuneCount').textContent = '';
   $('tunePicked').innerHTML = esc(t.title) + '<div class="ps">' + esc(t.channel || '') + '</div>';
@@ -654,6 +674,7 @@ function pickWords(r) {
   renderStats(words);
   buildCueList(lines);
   setArmed(true);
+  loadDropLog();
   findAcapella(r.title, r.artist);
   lookupBpm(r.title, r.artist, 'wordsBpm').then(() => { words.bpm = parseFloat($('wordsBpm').value) || null; renderStats(words); });
   renderSmashHeader();
@@ -720,7 +741,6 @@ $('playBtn').addEventListener('click', () => {
   }
   wantPlay = true;
   loadTune(true);
-  if (aca && !armed && $('acaOn').checked && acaReady) { try { acaPlayer.playVideo(); } catch (e) {} }
   if (!words) log('PLAY', 'tune only, pick words to smash on top');
 });
 
@@ -737,8 +757,11 @@ function smashTick() {
     $('lcdTag').textContent = n < 0 ? 'COUNT IN' : 'BAR ' + (Math.floor(n / 4) + 1) + ' BEAT ' + ((n % 4) + 1);
   }
   if (replayEnd !== null && t >= replayEnd) { replayEnd = null; pauseTune(); log('SAMPLE', 'replay finished'); }
-  if (words && armed) showArmed();
-  else if (words) showLyrics(words.lines, (t - offsetSec) * ratio());
+  const rate = appliedRate();
+  if (dropAt !== null) offsetSec = dropAt - cueT / rate;
+  if (words && waiting(t)) showArmed(t);
+  else if (words) showLyrics(words.lines, (t - offsetSec) * rate);
+  renderDropKey(t);
   syncAca(t);
 }
 
@@ -830,23 +853,28 @@ function acaSeek(t) {
 
 function syncAca(tuneT) {
   if (!aca || !acaReady || !acaPlayer) return;
-  if (armed) {
-    if (acaState === 1 && !acaWarming) pauseAca();
+  const r = appliedRate();
+  if (acaRateSet !== r) {
+    acaRateSet = r;
+    try { acaPlayer.setPlaybackRate(r); } catch (e) {}
+    const want = ratio();
+    $('acaTag').textContent = !$('stretchOn').checked ? 'ORIGINAL SPEED' : 'RATE ' + r.toFixed(2) + 'X' + (Math.abs(r - want) > 0.01 ? ' NEAR' : '');
+  }
+  if (waiting(tuneT)) {
+    if (acaState === 1 && !acaWarming) { pauseAca(); acaParkedAt = null; }
     if (acaParkedAt !== cueT + acaShift && !acaWarming) { acaParkedAt = cueT + acaShift; warmAca(acaParkedAt); }
+    if (dropAt !== null && dropTimerFor === dropAt && tuneT < dropAt - 1.5) dropTimerFor = null;
+    if (dropAt !== null && playerState === 1 && dropTimerFor !== dropAt && dropAt - tuneT < 1.0) {
+      dropTimerFor = dropAt;
+      const at = dropAt;
+      setTimeout(() => fireDrop(at), Math.max(0, (dropAt - tuneT) * 1000));
+    }
     return;
   }
   if (acaWarming) { acaWarming = false; try { acaPlayer.unMute(); acaPlayer.setVolume(+$('acaVol').value); } catch (e) {} }
   if (!$('acaOn').checked || playerState !== 1) { if (acaState === 1) pauseAca(); return; }
-  const want = ratio();
-  if (acaRateSet !== want) {
-    acaRateSet = want;
-    const r = nearestRate(want);
-    try { acaPlayer.setPlaybackRate(r); } catch (e) {}
-    $('acaTag').textContent = 'RATE ' + r.toFixed(2) + 'X' + (Math.abs(r - want) > 0.01 ? ' NEAR' : '');
-  }
-  const target = (tuneT - offsetSec) * want + acaShift;
+  const target = cueT + (tuneT - dropAt) * r + acaShift;
   const nowMs = Date.now();
-  if (target < 0) { if (acaState === 1) { pauseAca(); try { acaPlayer.seekTo(0, true); } catch (e) {} } return; }
   if (nowMs - acaLastSync < 500) return;
   acaLastSync = nowMs;
   let at = 0;
@@ -902,12 +930,13 @@ $('beatOneBtn').addEventListener('click', () => {
 $('snapOn').addEventListener('change', renderPhase);
 $('tuneBpm').addEventListener('input', renderPhase);
 
-/* cue and drop: hold the acapella, then drop it on the beat you pick */
-let armed = false, cueT = 0, acaShift = 0, acaParkedAt = null;
+/* cue and drop: park the voice on a cue line, then drop it at a tune time you tap or type */
+let dropAt = null, dropTimerFor = null, cueT = 0, acaShift = 0, acaParkedAt = null, dropLog = [];
+function waiting(t) { return dropAt === null || t < dropAt - 0.02; }
 function buildCueList(lines) {
   const sel = $('cueSel');
   sel.innerHTML = '<option value="0">0:00 top of the song</option>';
-  lines.forEach((l, i) => {
+  lines.forEach((l) => {
     if (!l.text) return;
     const o = document.createElement('option');
     o.value = String(l.t);
@@ -921,9 +950,8 @@ function buildCueList(lines) {
 }
 $('cueSel').addEventListener('change', () => {
   cueT = parseFloat($('cueSel').value) || 0;
-  acaParkedAt = null;
-  if (!armed) setArmed(true);
-  log('CUE', 'acapella parked at ' + fmt(cueT) + ', tap drop on the beat');
+  acaParkedAt = null; acaLastSync = 0; lastIdx = -2;
+  log('CUE', 'voice parked at ' + fmt(cueT) + (dropAt !== null ? ', drops at ' + dropAt.toFixed(3) + ' s' : ', tap drop on the beat'));
 });
 function renderAs() { $('asVal').textContent = (acaShift >= 0 ? '+' : '') + acaShift.toFixed(1) + ' s'; }
 document.querySelectorAll('[data-as]').forEach(b => b.addEventListener('click', () => {
@@ -931,41 +959,101 @@ document.querySelectorAll('[data-as]').forEach(b => b.addEventListener('click', 
   acaShift = d === 0 ? 0 : Math.round((acaShift + d) * 10) / 10;
   renderAs(); acaParkedAt = null; acaLastSync = 0;
 }));
-function setArmed(v) {
-  armed = v;
-  $('dropBtn').classList.toggle('armed', v);
-  $('dropBtn').textContent = v ? 'DROP' : 'ARM';
-  $('dropLabel').textContent = v ? 'DROP' : 'RE-ARM';
-  lastIdx = -2;
-  if (v) { pauseAca(); acaParkedAt = null; }
+
+function dropKey() { return (tune ? tune.videoId : '') + '|' + (words ? normLine(words.title) : ''); }
+function loadDropLog() { const m = recall('drops') || {}; dropLog = m[dropKey()] || []; renderDropLog(); }
+function saveDropLog() { const m = recall('drops') || {}; m[dropKey()] = dropLog.slice(0, 12); store('drops', m); }
+function renderDropLog() {
+  if (!dropLog.length) { $('dropLog').innerHTML = ''; return; }
+  $('dropLog').innerHTML = '<div class="rs mono" style="font-size:10px;letter-spacing:1px;color:var(--ink-faint);margin:6px 0 2px;">YOUR DROPS, NEWEST FIRST</div>';
+  dropLog.forEach(d => {
+    const row = document.createElement('div');
+    row.className = 'sampRow';
+    row.innerHTML = '<div class="rt"><div class="mono">' + d.at.toFixed(3) + ' s</div><div class="rs">' + esc(d.how) + ' / ' + esc(d.when) + '</div></div>';
+    const use = document.createElement('button'); use.className = 'seg'; use.textContent = 'USE';
+    use.addEventListener('click', () => { setDropAt(d.at, null); log('DROP', 'drop set to ' + d.at.toFixed(3) + ' s, tap from the top to hear it'); });
+    row.appendChild(use);
+    $('dropLog').appendChild(row);
+  });
 }
-function showArmed() {
+function logDrop(at, how) {
+  const d = new Date();
+  dropLog.unshift({ at: Math.round(at * 1000) / 1000, how, when: String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + ':' + String(d.getSeconds()).padStart(2, '0') });
+  if (dropLog.length > 12) dropLog.pop();
+  saveDropLog(); renderDropLog();
+}
+function setDropAt(v, how) {
+  dropAt = v === null || !isFinite(v) ? null : Math.max(0, Math.round(v * 1000) / 1000);
+  dropTimerFor = null; acaLastSync = 0; lastIdx = -2;
+  if (document.activeElement !== $('dropIn')) $('dropIn').value = dropAt === null ? '' : dropAt.toFixed(3);
+  if (dropAt !== null && how) logDrop(dropAt, how);
+  renderOffset();
+}
+function setArmed(v) {
+  if (v) { setDropAt(null, null); pauseAca(); acaParkedAt = null; }
+  lastIdx = -2;
+}
+function renderDropKey(t) {
+  const w = waiting(t);
+  $('dropBtn').classList.toggle('armed', w);
+  $('dropBtn').textContent = w ? 'DROP' : 'ARM';
+  $('dropLabel').textContent = w ? (dropAt !== null ? 'AUTO ' + dropAt.toFixed(1) : 'DROP') : 'RE-ARM';
+}
+function showArmed(t) {
   const line = words.lines.find(l => Math.abs(l.t - cueT) < 0.01);
-  $('lyrCur').textContent = 'Waiting for drop';
+  $('lyrCur').textContent = dropAt !== null ? 'Drops at ' + dropAt.toFixed(3) + ' s' : 'Waiting for drop';
   $('lyrCur').classList.remove('chorus');
   $('lyrNext').textContent = line ? line.text : 'Top of the song';
   $('lyrNext').classList.toggle('chorus', !!(line && line.chorus));
-  $('leadBar').style.width = '0%';
+  const bar = parseFloat($('tuneBpm').value) > 0 ? 240 / parseFloat($('tuneBpm').value) : 2;
+  $('leadBar').style.width = dropAt !== null && t > dropAt - bar ? Math.min(100, (1 - (dropAt - t) / bar) * 100) + '%' : '0%';
+  lastIdx = -2;
+}
+function fireDrop(at) {
+  if (mode !== 'smash' || dropAt !== at || playerState !== 1 || !aca || !acaReady || !$('acaOn').checked) return;
+  acaWarming = false; warmToken++;
+  let t = at;
+  try { t = player.getCurrentTime() || at; } catch (e) {}
+  const start = cueT + Math.max(0, t - at) * appliedRate() + acaShift;
+  try { acaPlayer.unMute(); acaPlayer.setVolume(+$('acaVol').value); } catch (e) {}
+  if (Math.abs(start - (cueT + acaShift)) > 0.3) acaSeek(start); else acaGraceUntil = Date.now() + 1500;
+  try { acaPlayer.playVideo(); } catch (e) {}
+  acaLastSync = Date.now();
 }
 $('dropBtn').addEventListener('click', () => {
   if (!words) { log('DROP', 'pick words first'); return; }
-  if (!armed) { setArmed(true); log('ARM', 'acapella parked at ' + fmt(cueT) + ', tap drop on the beat'); return; }
-  if (playerState !== 1) { log('DROP', 'start the tune first, then drop on the beat'); return; }
   let t = 0;
   try { t = player.getCurrentTime() || 0; } catch (e) {}
+  if (!waiting(t)) { setArmed(true); log('ARM', 'voice parked at ' + fmt(cueT) + ', tap drop on the beat'); return; }
+  if (playerState !== 1) { log('DROP', 'start the tune first, then drop on the beat'); return; }
   const landAt = snapReady() ? snapNearest(t) : t;
-  offsetSec = landAt - cueT / ratio();
-  renderOffset();
-  setArmed(false);
-  acaLastSync = 0;
-  if (aca && acaReady && $('acaOn').checked) {
-    const start = (t - offsetSec) * ratio() + acaShift;
-    acaWarming = false;
-    try { acaPlayer.unMute(); acaPlayer.setVolume(+$('acaVol').value); } catch (e) {}
-    if (Math.abs(start - (cueT + acaShift)) > 0.5) acaSeek(start); else acaGraceUntil = Date.now() + 1500;
-    try { acaPlayer.playVideo(); } catch (e) {}
-  }
-  log('DROP', 'acapella dropped at ' + fmt(landAt) + (landAt !== t ? ', snapped ' + Math.round((landAt - t) * 1000) + ' ms' : '') + ', nudge with earlier and later');
+  setDropAt(landAt, 'tapped' + (landAt !== t ? ', snapped ' + Math.round((landAt - t) * 1000) + ' ms' : ''));
+  if (landAt <= t + 0.02) { dropTimerFor = dropAt; fireDrop(dropAt); }
+  log('DROP', 'dropped at ' + dropAt.toFixed(3) + ' s of the tune, it is saved in your drops');
+});
+$('dropIn').addEventListener('change', () => {
+  const v = parseFloat($('dropIn').value);
+  if (!isFinite(v)) { setArmed(true); return; }
+  setDropAt(v, 'typed');
+  log('DROP', 'voice drops at ' + dropAt.toFixed(3) + ' s, tap from the top to hear it');
+});
+$('dropClear').addEventListener('click', () => { setArmed(true); log('DROP', 'cleared, tap drop on the beat'); });
+document.querySelectorAll('[data-dt]').forEach(b => b.addEventListener('click', () => {
+  if (dropAt === null) { log('DROP', 'set a drop first'); return; }
+  setDropAt(dropAt + parseFloat(b.getAttribute('data-dt')), null);
+  log('DROP', 'drop moved to ' + dropAt.toFixed(3) + ' s');
+}));
+$('restartBtn').addEventListener('click', () => {
+  if (!tune) { log('RESTART', 'pick a tune first'); return; }
+  pauseAca(); acaParkedAt = null; dropTimerFor = null; lastIdx = -2;
+  wantPlay = true;
+  ensurePlayer(() => {
+    try {
+      if (loadedVideo !== tune.videoId) { loadedVideo = tune.videoId; player.loadVideoById(tune.videoId, 0); }
+      else { player.seekTo(0, true); player.playVideo(); }
+    } catch (e) {}
+  });
+  log('RESTART', 'from the top' + (dropAt !== null ? ', voice drops at ' + dropAt.toFixed(3) + ' s' : ', tap drop on the beat'));
 });
 
 /* ===== LIVE KARAOKE MODE ===== */
@@ -1090,7 +1178,7 @@ function karaokeTick() {
 
 /* ===== LIVE SMASH MODE ===== */
 let liveSong = null, liveTimer = null, liveBusy = false, liveNudgeMs = 0, liveShift = 0;
-let liveWarmedFor = null;
+let liveWarmedFor = null, liveApplied = 1;
 let liveInst = null, donor = null, donorAca = null, liveDropAt = null, liveRate = 1, liveRateSet = null, liveLastSync = 0, liveWantPlay = false;
 
 function liveLyricsLine() { return donor && donor.lines.length ? donor.lines.find(l => l.text) : null; }
@@ -1105,7 +1193,7 @@ function renderLiveHeader() {
   const bits = [];
   if (liveSong && liveSong.bpm) bits.push('LIVE ' + Math.round(liveSong.bpm));
   if (donor && donor.bpm) bits.push('DONOR ' + Math.round(donor.bpm));
-  if (donor) bits.push('RATE ' + liveRate.toFixed(2) + 'X');
+  if (donor) bits.push($('liveStretch').checked ? 'RATE ' + liveApplied.toFixed(2) + 'X' : 'ORIGINAL SPEED');
   $('meta').textContent = bits.length ? bits.join(' / ') : '--';
 }
 function renderLiveNudges() {
@@ -1326,11 +1414,14 @@ function liveTick() {
 
   if (donor && donorAca && acaReady && liveWantPlay && $('liveAcaOn').checked) {
     if (liveDropAt === null) armLiveDrop(pos);
-    if (liveRateSet !== liveRate) {
-      liveRateSet = liveRate;
-      try { acaPlayer.setPlaybackRate(nearestRate(liveRate)); } catch (e) {}
+    const wantRate = $('liveStretch').checked ? liveRate : 1;
+    if (liveRateSet !== wantRate) {
+      liveRateSet = wantRate;
+      liveApplied = nearestRate(wantRate);
+      try { acaPlayer.setPlaybackRate(liveApplied); } catch (e) {}
+      renderLiveHeader();
     }
-    const target = donorCue() + (pos - liveDropAt) * liveRate + liveShift;
+    const target = donorCue() + (pos - liveDropAt) * liveApplied + liveShift;
     if (pos < liveDropAt) {
       $('liveAcaTag').textContent = 'DROPS IN ' + (liveDropAt - pos).toFixed(1) + ' S';
       if (liveWarmedFor !== donorAca.videoId && !acaWarming) { liveWarmedFor = donorAca.videoId; warmAca(donorCue() + liveShift); }
@@ -1361,6 +1452,7 @@ function liveTick() {
 }
 
 $('liveListenBtn').addEventListener('click', liveIdentify);
+$('liveStretch').addEventListener('change', () => { liveRateSet = null; liveLastSync = 0; });
 $('livePlayBtn').addEventListener('click', () => {
   liveWantPlay = !liveWantPlay;
   $('livePlayLabel').textContent = liveWantPlay ? 'STOP' : 'PLAY';
@@ -1406,7 +1498,7 @@ function currentRecipe() {
       words: words ? { title: words.title, artist: words.artist } : null,
       tuneBpm: parseFloat($('tuneBpm').value) || null,
       wordsBpm: parseFloat($('wordsBpm').value) || null,
-      fold, offsetSec, acaShift, armed, start: t
+      fold, offsetSec, acaShift, dropAt, cueT, stretch: $('stretchOn').checked, start: t
     };
   }
   if (mode === 'live') {
@@ -1424,7 +1516,9 @@ function currentRecipe() {
       fold: 1,
       offsetSec: liveDropAt !== null ? liveDropAt - donorCue() / rate : 0,
       acaShift: liveShift,
-      armed: false,
+      dropAt: liveDropAt,
+      cueT: donorCue(),
+      stretch: $('liveStretch').checked,
       start: pos
     };
   }
@@ -1522,10 +1616,12 @@ async function replaySample(r) {
     $('wordsPicked').classList.add('on');
     fetch('/api/lyrics?title=' + encodeURIComponent(r.words.title) + '&artist=' + encodeURIComponent(r.words.artist)).then(x => x.json()).then(d => {
       const hit = d && d.results && d.results[0];
-      if (hit && words && words.title === r.words.title) { words.lines = parseLrc(hit.synced); words.chorus = markChorus(words.lines); buildCueList(words.lines); lastIdx = -2; renderStats(words); }
+      if (hit && words && words.title === r.words.title) { words.lines = parseLrc(hit.synced); words.chorus = markChorus(words.lines); buildCueList(words.lines); if (typeof r.cueT === 'number') { cueT = r.cueT; $('cueSel').value = String(r.cueT); } lastIdx = -2; renderStats(words); loadDropLog(); }
     }).catch(() => {});
   }
-  setArmed(!!r.armed);
+  $('stretchOn').checked = r.stretch !== false;
+  if (typeof r.cueT === 'number') { cueT = r.cueT; acaParkedAt = null; }
+  setDropAt(typeof r.dropAt === 'number' ? r.dropAt : null, null);
   if (r.aca) {
     aca = { videoId: r.aca.videoId, title: r.aca.title, channel: '' };
     $('acaInfo').innerHTML = esc(aca.title) + '<div class="rs">FROM ' + esc(r.name) + '</div>';
