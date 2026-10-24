@@ -239,6 +239,14 @@
 <div class="card hide c-ink" id="profileCard">
   <div class="cardTitle"><span>Profile</span><span class="mono" id="profTag">SUPABASE</span></div>
   <div id="profBody"></div>
+  <div class="infoRow" style="margin-top:14px"><b>Your YouTube key</b></div>
+  <div style="font-size:13px;color:var(--ink-soft);line-height:1.45">Over 1,400 songs are already saved on the server, and searching them is free, so you can skip this. The shared key runs out after about 100 new song searches a day for everyone. Adding your own key gives you about 100 more new searches a day of your own. Every new song you find gets saved for everyone too.</div>
+  <div style="display:flex;gap:6px;align-items:center;margin-top:8px">
+    <input class="profIn" id="ytKey" type="password" placeholder="Paste your YouTube Data API key" autocomplete="off" spellcheck="false" style="flex:1;margin:0">
+    <button class="sbtn" id="ytEye" aria-label="Show key" style="flex:0 0 auto;padding:0 12px"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 5C6 5 2 12 2 12s4 7 10 7 10-7 10-7-4-7-10-7zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8z" fill="currentColor"/></svg></button>
+  </div>
+  <div class="btnRow"><button class="sbtn go" id="ytSave">Save key</button><button class="sbtn" id="ytClear">Remove key</button></div>
+  <div id="ytMsg" class="mono" style="font-size:12px;color:var(--accent);margin-top:8px"></div>
 </div>
 
 <div class="modeRow">
@@ -751,7 +759,7 @@ async function findTune() {
   const inst = $('instOnly').checked;
   const finalQ = inst && !/instrumental/i.test(q) ? q + ' instrumental' : q;
   let d = null;
-  try { d = await (await fetch('/api/youtube-search?q=' + encodeURIComponent(finalQ))).json(); } catch (e) {}
+  try { d = await (await ytSearch(encodeURIComponent(finalQ))).json(); } catch (e) {}
   let rows = d && d.results ? d.results : [];
   if (inst) {
     const tagged = rows.filter(r => /instrumental|beat|karaoke|no vocals/i.test(decodeHtml(r.title)));
@@ -953,7 +961,7 @@ async function findAcapella(title, artist) {
   $('acaResults').innerHTML = '';
   $('acaInfo').innerHTML = '<span style="color:var(--ink-faint)">Looking for a vocal only version</span>';
   let d = null;
-  try { d = await (await fetch('/api/youtube-search?q=' + encodeURIComponent(title + ' ' + artist + ' acapella'))).json(); } catch (e) {}
+  try { d = await (await ytSearch(encodeURIComponent(title + ' ' + artist + ' acapella'))).json(); } catch (e) {}
   const rows = (d && d.results ? d.results : []).filter(r => ACA_WORDS.test(decodeHtml(r.title)));
   if (!rows.length) {
     $('acaTag').textContent = 'NONE FOUND';
@@ -1458,7 +1466,7 @@ async function findLiveInstrumental() {
   $('liveInstTag').textContent = 'SEARCHING';
   $('liveInstResults').innerHTML = '';
   let d = null;
-  try { d = await (await fetch('/api/youtube-search?q=' + encodeURIComponent(liveSong.title + ' ' + liveSong.artist + ' instrumental'))).json(); } catch (e) {}
+  try { d = await (await ytSearch(encodeURIComponent(liveSong.title + ' ' + liveSong.artist + ' instrumental'))).json(); } catch (e) {}
   const rows = (d && d.results ? d.results : []).filter(r => /instrumental|karaoke|no vocals|beat/i.test(decodeHtml(r.title)));
   if (!rows.length) { liveInst = null; $('liveInstTag').textContent = 'NONE FOUND'; $('liveInstInfo').textContent = 'No instrumental upload found, the donor plays over the room'; return; }
   pickLiveInst(rows[0]);
@@ -1595,7 +1603,7 @@ async function pickDonor(o) {
   $('liveAcaTag').textContent = 'SEARCHING';
   $('liveAcaResults').innerHTML = '';
   let d = null;
-  try { d = await (await fetch('/api/youtube-search?q=' + encodeURIComponent(o.title + ' ' + o.artist + ' acapella'))).json(); } catch (e) {}
+  try { d = await (await ytSearch(encodeURIComponent(o.title + ' ' + o.artist + ' acapella'))).json(); } catch (e) {}
   if (!donor || donor.title !== o.title) return;
   const rows = (d && d.results ? d.results : []).filter(r => ACA_WORDS.test(decodeHtml(r.title)));
   if (!rows.length) { $('liveAcaTag').textContent = 'NONE FOUND'; $('liveAcaInfo').textContent = 'No vocal only upload for this donor, pick another suggestion'; return; }
@@ -2088,6 +2096,26 @@ async function playCloudAudio(r) {
   cloudAudio.play().then(() => { renderSamples(); }).catch(() => log('HEAR', 'tap again to play'));
 }
 
+// Personal YouTube key: kept on this device only, sent with searches.
+function ytKeyGet() { try { return localStorage.getItem('smash:ytkey') || ''; } catch (e) { return ''; } }
+function ytSearch(qEnc) {
+  const k = ytKeyGet();
+  return fetch('/api/youtube-search?q=' + qEnc, k ? { headers: { 'x-yt-key': k } } : undefined);
+}
+(function () {
+  const inp = $('ytKey'), msg = $('ytMsg');
+  const show = () => { const k = ytKeyGet(); inp.value = k; msg.textContent = k ? 'Using your key, ending in ' + k.slice(-4) : 'Using the shared key'; };
+  show();
+  $('ytEye').onclick = () => { inp.type = inp.type === 'password' ? 'text' : 'password'; };
+  $('ytSave').onclick = () => {
+    const k = inp.value.trim();
+    if (!/^[A-Za-z0-9_-]{30,60}$/.test(k)) { msg.textContent = 'That does not look like a YouTube key'; return; }
+    try { localStorage.setItem('smash:ytkey', k); } catch (e) {}
+    show();
+  };
+  $('ytClear').onclick = () => { try { localStorage.removeItem('smash:ytkey'); } catch (e) {} show(); };
+})();
+
 async function renderProfile() {
   const body = $('profBody');
   if (!sbReady) { body.innerHTML = '<span style="color:var(--ink-faint)">Supabase is not connected to this app yet</span>'; $('profTag').textContent = 'OFFLINE'; return; }
@@ -2354,7 +2382,7 @@ function titleIn(videoTitle, songTitle) {
 }
 async function autoVideo(q, re, songTitle) {
   let d = null;
-  try { d = await (await fetch('/api/youtube-search?q=' + encodeURIComponent(q))).json(); } catch (e) {}
+  try { d = await (await ytSearch(encodeURIComponent(q))).json(); } catch (e) {}
   const rows = (d && d.results ? d.results : []).filter(r => re.test(decodeHtml(r.title)) && titleIn(r.title, songTitle));
   return rows[0] || null;
 }
