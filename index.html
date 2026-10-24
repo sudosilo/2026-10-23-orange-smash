@@ -183,6 +183,8 @@
   .c-samp { border-left-color: #b8325a; } .c-samp .cardTitle { color: #b8325a; }
   .c-ink { border-left-color: var(--ink); } .c-ink .cardTitle { color: var(--ink); }
 
+  #helpShade { position: fixed; inset: 0; background: rgba(34,37,42,.35); z-index: 49; }
+  #helpCard { position: fixed; top: 12px; bottom: 12px; left: 12px; right: 12px; max-width: 480px; margin: 0 auto; overflow-y: auto; z-index: 50; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
   .helpText p { font-size: 13px; line-height: 1.55; margin: 0 0 10px; color: var(--ink-soft); }
   .helpText b { color: var(--ink); }
 
@@ -202,8 +204,9 @@
   <a href="#" data-go="help">How it works</a>
 </nav>
 
+<div class="hide" id="helpShade"></div>
 <div class="card hide c-ink" id="helpCard">
-  <div class="cardTitle"><span>How it works</span><span></span></div>
+  <div class="cardTitle"><span>How it works</span><button class="seg" id="helpClose">CLOSE</button></div>
   <div class="helpText">
     <p><b>Smash</b> plays one song's instrumental as the beat and lays another song's acapella and timed lyrics over it. Find a beat in the Instrumental card and a voice in the Acapella card. Every result shows its BPM and how far it is from the other side, closest matches on top.</p>
     <p>Press play, then tap DROP right where the voice should come in. The voice waits at the line picked in Acapella settings, then starts on the beat. Type an exact drop time there instead if you know it, nudge it with the plus and minus buttons, and tap FROM THE TOP to hear it again from the start. Every drop is logged so you can go back to one.</p>
@@ -1909,7 +1912,7 @@ document.querySelectorAll('#menu a').forEach(a => a.addEventListener('click', (e
   e.preventDefault();
   $('menu').classList.remove('open');
   const go = a.getAttribute('data-go');
-  if (go === 'help') { $('helpCard').classList.toggle('hide'); $('helpCard').classList.remove('shut'); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  if (go === 'help') { showHelp(true); return; }
   if (go === 'profile') { $('profileCard').classList.toggle('hide'); renderProfile(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
   const el = $(go);
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -2026,12 +2029,21 @@ async function renderProfile() {
 }
 initSupabase();
 
+function showHelp(on) {
+  $('helpCard').classList.toggle('hide', !on);
+  $('helpShade').classList.toggle('hide', !on);
+  $('helpCard').classList.remove('shut');
+  if (on) $('helpCard').scrollTop = 0;
+}
+$('helpClose').addEventListener('click', () => showHelp(false));
+$('helpShade').addEventListener('click', () => showHelp(false));
+
 /* fold any card by tapping its title, remembered per card */
 (function () {
   const shut = recall('shut') || {};
   document.querySelectorAll('.card').forEach((card, i) => {
     const t = card.querySelector(':scope > .cardTitle');
-    if (!t) return;
+    if (!t || card.id === 'helpCard') return;
     const key = card.id || ('card' + i + ':' + (t.textContent || '').trim().slice(0, 20));
     t.classList.add('fold');
     const first = t.firstElementChild;
