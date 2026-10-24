@@ -21,9 +21,24 @@ if (act) {
   let k = fs.readFileSync(act, "utf8");
   if (!k.includes("mediaPlaybackRequiresUserGesture")) {
     const at = k.lastIndexOf("}");
-    k = k.slice(0, at) + "  override fun onWebViewCreate(webView: android.webkit.WebView) {\n    webView.settings.mediaPlaybackRequiresUserGesture = false\n  }\n" + k.slice(at);
+    const fn = [
+      "  override fun onWebViewCreate(webView: android.webkit.WebView) {",
+      "    webView.settings.mediaPlaybackRequiresUserGesture = false",
+      "    val root = findViewById<android.view.View>(android.R.id.content)",
+      "    root.setBackgroundColor(android.graphics.Color.parseColor(\"#e9e6df\"))",
+      "    androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->",
+      "      val b = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars() or androidx.core.view.WindowInsetsCompat.Type.displayCutout())",
+      "      v.setPadding(b.left, b.top, b.right, b.bottom)",
+      "      androidx.core.view.WindowInsetsCompat.CONSUMED",
+      "    }",
+      "    root.requestApplyInsets()",
+      "    androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = true",
+      "  }",
+      ""
+    ].join("\n");
+    k = k.slice(0, at) + fn + k.slice(at);
     fs.writeFileSync(act, k);
-    console.log("Autoplay allowed in " + act);
+    console.log("Autoplay and status bar spacing set in " + act);
   }
 }
 console.log("Android manifest ready");
