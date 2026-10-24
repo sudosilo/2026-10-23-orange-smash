@@ -406,6 +406,8 @@
 
 <div class="card hide c-samp" id="samplesCard">
   <div class="cardTitle"><span>My samples</span><span class="mono" id="sampCount"></span></div>
+  <div id="sampWho" class="rs" style="margin-bottom:6px"></div>
+  <div id="sampMsg" class="mono" style="font-size:12px;color:var(--ink-soft);min-height:16px;margin-bottom:4px"></div>
   <div id="sampList"><div class="sampRow"><span class="rs">Tap sample while a smash plays, tap again to stop and export</span></div></div>
 </div>
 
@@ -429,9 +431,12 @@ function fmt(sec) {
 function setLink(state, text) { $('linkDot').className = 'dot' + (state ? ' ' + state : ''); $('linkText').textContent = text; }
 let ackTimer = null;
 function log(cmd, text, holdMs) {
-  $('ack').innerHTML = '&gt; <span class="cmd">' + esc(cmd) + '</span> ' + esc(text);
+  const html = '&gt; <span class="cmd">' + esc(cmd) + '</span> ' + esc(text);
+  $('ack').innerHTML = html;
+  const sm = document.getElementById('sampMsg');
+  if (sm) sm.innerHTML = html;
   if (ackTimer) clearTimeout(ackTimer);
-  if (holdMs !== 0) ackTimer = setTimeout(() => { $('ack').innerHTML = ''; }, holdMs || 6000);
+  if (holdMs !== 0) ackTimer = setTimeout(() => { $('ack').innerHTML = ''; if (sm) sm.innerHTML = ''; }, holdMs || 6000);
 }
 function store(k, v) { try { localStorage.setItem('smash:' + k, JSON.stringify(v)); } catch (e) {} }
 function recall(k) { try { return JSON.parse(localStorage.getItem('smash:' + k) || 'null'); } catch (e) { return null; } }
@@ -1767,6 +1772,8 @@ function downloadBlob(blob, filename) {
 $('sampleBtn').addEventListener('click', () => { if (sampling) stopSample(); else startSample(); });
 
 function renderSamples() {
+  const who = document.getElementById('sampWho');
+  if (who) who.textContent = !sb ? '' : (sbUser ? 'Signed in as ' + (sbUser.email || '') + '. SHARE puts a sample in the feed.' : 'Signed out. Sign in from the menu, Profile, to share samples.');
   $('sampCount').textContent = samples.length ? samples.length + ' SAVED' : '';
   if (!samples.length) { $('sampList').innerHTML = '<div class="sampRow"><span class="rs">Tap sample while a smash plays, tap again to stop and export</span></div>'; return; }
   $('sampList').innerHTML = '';
@@ -1975,8 +1982,9 @@ async function initSupabase() {
   sbReady = true;
   const { data } = await sb.auth.getSession();
   sbUser = data && data.session ? data.session.user : null;
-  sb.auth.onAuthStateChange((_ev, session) => { sbUser = session ? session.user : null; renderProfile(); if (sbUser) pullCloudSamples(); });
+  sb.auth.onAuthStateChange((_ev, session) => { sbUser = session ? session.user : null; renderProfile(); renderSamples(); if (sbUser) pullCloudSamples(); });
   renderProfile();
+  renderSamples();
   if (sbUser) pullCloudSamples();
 }
 function tl(kind, title, artist, ref, data) {
@@ -1998,7 +2006,7 @@ async function cloudSaveSample(r, blob) {
     store('samples', samples); renderSamples();
     tl('sample', r.words ? r.words.title : null, r.words ? r.words.artist : null, ins.data.id, { name: r.name, beat: r.tune ? r.tune.title : null });
     log('SAMPLE', 'saved to your profile');
-  } else log('SAMPLE', 'could not save to your profile, it is still on this phone');
+  } else log('SAMPLE', 'could not save to your profile' + (ins.error ? ': ' + ins.error.message : '') + ', it is still on this phone');
 }
 async function pullCloudSamples() {
   if (!sb || !sbUser) return;
@@ -2091,7 +2099,9 @@ async function ensureProfile() {
   await sb.from('smash_profiles').upsert({ id: sbUser.id, display_name: (sbUser.email || 'smasher').split('@')[0] }, { onConflict: 'id', ignoreDuplicates: true });
 }
 async function toggleShare(r) {
-  if (!sb || !sbUser) { log('SHARE', 'sign in from the menu to share'); return; }
+  if (!sb) { log('SHARE', 'the profile connection is not loaded, refresh the page'); return; }
+  if (!sbUser) { log('SHARE', 'sign in from the menu, Profile, to share'); return; }
+  log('SHARE', r.isPublic ? 'making it private' : 'sharing', 0);
   if (!r.cloudId) {
     log('SHARE', 'saving it to your profile first');
     await cloudSaveSample(r, null);
@@ -2099,8 +2109,8 @@ async function toggleShare(r) {
   }
   await ensureProfile();
   const next = !r.isPublic;
-  const { error } = await sb.from('smash_samples').update({ is_public: next }).eq('id', r.cloudId);
-  if (error) { log('SHARE', 'could not change sharing'); return; }
+  const { data: upd, error } = await sb.from('smash_samples').update({ is_public: next }).eq('id', r.cloudId).select('id');
+  if (error || !upd || !upd.length) { log('SHARE', 'could not change sharing: ' + (error ? error.message : 'sample not found on your profile')); return; }
   r.isPublic = next; store('samples', samples); renderSamples();
   if (next) tl('share', r.words ? r.words.title : null, r.words ? r.words.artist : null, r.cloudId, { name: r.name });
   log('SHARE', next ? 'shared, everyone can hear and replay it' : 'back to private');
@@ -2121,7 +2131,7 @@ async function loadFeed(userId) {
   let q = sb.from('smash_samples').select('id,user_id,name,recipe,audio_path,created_at').eq('is_public', true).order('created_at', { ascending: false }).limit(40);
   if (feedUser) q = q.eq('user_id', feedUser);
   const { data, error } = await q;
-  if (error) { $('feedList').innerHTML = '<span class="rs">Could not load the feed</span>'; return; }
+  if (error) { $('feedList').innerHTML = '<span class="rs">Could not load the feed: ' + esc(error.message) + '</span>'; return; }
   if (!data || !data.length) { $('feedList').innerHTML = '<span class="rs" style="color:var(--ink-faint)">Nothing shared yet. Tap SHARE on one of your samples.</span>'; return; }
   const ids = data.map(x => x.id), users = [...new Set(data.map(x => x.user_id))];
   const [profs, reacts, comms] = await Promise.all([
