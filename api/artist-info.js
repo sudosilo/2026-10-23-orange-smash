@@ -37,7 +37,7 @@ export default async function handler(request) {
       const lengths = all.map(r => r.length).filter(Boolean).sort((x, y) => x - y);
       song = {
         title: hit.title,
-        firstReleased: (pool[0] && pool[0]['first-release-date']) || null,
+        firstReleased: [best && best.rel.date, pool[0] && pool[0]['first-release-date']].filter(Boolean).sort()[0] || null,
         album: best ? best.rel.title : null,
         lengthSeconds: hit.length ? Math.round(hit.length / 1000) : (lengths.length ? Math.round(lengths[Math.floor(lengths.length / 2)] / 1000) : null)
       };
