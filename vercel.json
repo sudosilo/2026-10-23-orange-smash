@@ -1,4 +1,5 @@
 {
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- . ':!src-tauri' ':!.github' ':!tools' ':!supabase'",
   "rewrites": [
     {
       "source": "/api/time",
