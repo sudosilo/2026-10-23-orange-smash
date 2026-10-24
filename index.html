@@ -843,7 +843,7 @@ function ensurePlayer(cb) {
       playerVars: { controls: 0, playsinline: 1, rel: 0, disablekb: 1, fs: 0, iv_load_policy: 3 },
       events: {
         onReady: () => { playerReady = true; readyQueue.splice(0).forEach(f => f()); },
-        onStateChange: (e) => { playerState = e.data; renderPlayKey(); if (e.data === 0) { wantPlay = false; log('END', 'tune finished'); } },
+        onStateChange: (e) => { playerState = e.data; renderPlayKey(); if (view === 'samples') { renderSamples(); paintFeedPlay(); } if (e.data === 0) { wantPlay = false; replayingName = null; log('END', 'tune finished'); } },
         onError: (e) => { log('INSTRUMENTAL', 'this upload blocks embedded play, error ' + (e && e.data) + ', pick another'); wantPlay = false; renderPlayKey(); }
       }
     });
@@ -894,7 +894,7 @@ function smashTick() {
     const n = Math.floor((t - gridPhase) / beat + 1e-6);
     $('lcdTag').textContent = n < 0 ? 'COUNT IN' : 'BAR ' + (Math.floor(n / 4) + 1) + ' BEAT ' + ((n % 4) + 1);
   }
-  if (replayEnd !== null && t >= replayEnd) { replayEnd = null; pauseTune(); log('SAMPLE', 'replay finished'); }
+  if (replayEnd !== null && t >= replayEnd) { replayEnd = null; replayingName = null; pauseTune(); renderSamples(); paintFeedPlay(); log('SAMPLE', 'replay finished'); }
   const rate = appliedRate();
   if (dropAt !== null) offsetSec = dropAt - cueT / rate;
   if (words && waiting(t)) showArmed(t);
@@ -1783,12 +1783,14 @@ function renderSamples() {
     const what = (r.words ? r.words.title : 'no words') + ' over ' + (r.source === 'live' && r.liveSong ? r.liveSong.title : (r.tune ? r.tune.title : 'no tune'));
     row.innerHTML = '<div class="rt"><div>' + esc(what) + '</div><div class="rs">' + esc(r.name) + ' / ' + fmt(r.seconds) + (r.cloudId ? ' / SAVED TO PROFILE' : '') + '</div></div>';
     if (r.audioPath) {
-      const hear = document.createElement('button'); hear.className = 'seg'; hear.textContent = 'HEAR';
-      hear.addEventListener('click', () => playCloudAudio(r));
+      const hearing = cloudAudio && !cloudAudio.paused && cloudAudioName === r.name;
+      const hear = document.createElement('button'); hear.className = 'seg' + (hearing ? ' on' : ''); hear.textContent = hearing ? 'STOP' : 'HEAR';
+      hear.addEventListener('click', () => { if (hearing) { cloudAudio.pause(); renderSamples(); } else playCloudAudio(r); });
       row.appendChild(hear);
     }
-    const play = document.createElement('button'); play.className = 'seg'; play.textContent = 'REPLAY';
-    play.addEventListener('click', () => replaySample(r));
+    const playingThis = replayingName === r.name && (playerState === 1 || playerState === 3);
+    const play = document.createElement('button'); play.className = 'seg' + (playingThis ? ' on' : ''); play.textContent = playingThis ? 'STOP' : 'REPLAY';
+    play.addEventListener('click', () => { if (playingThis) { replayingName = null; replayEnd = null; pauseTune(); renderSamples(); } else { replayingName = r.name; replaySample(r); } });
     const exp = document.createElement('button'); exp.className = 'seg'; exp.textContent = 'EXPORT';
     exp.addEventListener('click', () => downloadBlob(new Blob([JSON.stringify(r, null, 2)], { type: 'application/json' }), r.name + '.json'));
     const del = document.createElement('button'); del.className = 'seg'; del.textContent = 'X';
@@ -1803,7 +1805,9 @@ function renderSamples() {
 
 async function replaySample(r) {
   if (!r.tune) { log('REPLAY', 'this sample has no beat to play'); return; }
+  const keepView = view;
   if (mode !== 'smash') setMode('smash');
+  if (keepView === 'samples') setView('samples');
   tune = { videoId: r.tune.videoId, title: r.tune.title, channel: '' };
   $('tunePicked').innerHTML = esc(tune.title) + '<div class="ps">FROM ' + esc(r.name) + '</div>';
   $('tunePicked').classList.add('on');
@@ -2027,14 +2031,16 @@ async function cloudDeleteSample(r) {
   if (r.audioPath) await sb.storage.from('smash-samples').remove([r.audioPath]);
   await sb.from('smash_samples').delete().eq('id', r.cloudId);
 }
-let cloudAudio = null;
+let cloudAudio = null, cloudAudioName = null, replayingName = null;
 async function playCloudAudio(r) {
   if (!sb || !r.audioPath) { log('HEAR', 'no saved audio for this one'); return; }
   const { data, error } = await sb.storage.from('smash-samples').createSignedUrl(r.audioPath, 600);
   if (error || !data) { log('HEAR', 'could not load that audio'); return; }
   if (cloudAudio) cloudAudio.pause();
   cloudAudio = new Audio(data.signedUrl);
-  cloudAudio.play().catch(() => log('HEAR', 'tap again to play'));
+  cloudAudioName = r.name || null;
+  cloudAudio.addEventListener('ended', () => { renderSamples(); if (view === 'samples') loadFeed(feedUser); });
+  cloudAudio.play().then(() => { renderSamples(); }).catch(() => log('HEAR', 'tap again to play'));
 }
 
 async function renderProfile() {
@@ -2151,8 +2157,12 @@ async function loadFeed(userId) {
     const bar = document.createElement('div');
     bar.className = 'btnRow'; bar.style.marginTop = '4px';
     if (sm.audio_path) { const h = document.createElement('button'); h.className = 'seg'; h.textContent = 'HEAR'; h.onclick = () => playCloudAudio({ audioPath: sm.audio_path }); bar.appendChild(h); }
-    const rp = document.createElement('button'); rp.className = 'seg'; rp.textContent = 'REPLAY';
-    rp.onclick = () => { setView(null); replaySample(Object.assign({}, sm.recipe || {}, { name: sm.name })); };
+    const rp = document.createElement('button'); rp.className = 'seg feedPlay'; rp.dataset.name = 'feed:' + sm.id; rp.textContent = 'REPLAY';
+    rp.onclick = () => {
+      if (replayingName === 'feed:' + sm.id && (playerState === 1 || playerState === 3)) { replayingName = null; replayEnd = null; pauseTune(); paintFeedPlay(); return; }
+      replayingName = 'feed:' + sm.id;
+      replaySample(Object.assign({}, sm.recipe || {}, { name: sm.name }));
+    };
     bar.appendChild(rp);
     REACTS.forEach(em => {
       const mine = (reacts.data || []).some(r => r.sample_id === sm.id && r.emoji === em && sbUser && r.user_id === sbUser.id);
@@ -2171,6 +2181,13 @@ async function loadFeed(userId) {
     cb.onclick = () => toggleThread(sm.id, thread);
     $('feedList').appendChild(row);
     if (openThread === sm.id) toggleThread(sm.id, thread, true);
+  });
+}
+function paintFeedPlay() {
+  document.querySelectorAll('.feedPlay').forEach(b => {
+    const on = replayingName === b.dataset.name && (playerState === 1 || playerState === 3);
+    b.textContent = on ? 'STOP' : 'REPLAY';
+    b.classList.toggle('on', on);
   });
 }
 async function react(sampleId, emoji, mine) {

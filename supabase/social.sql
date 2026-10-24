@@ -62,3 +62,5 @@ create policy "smash samples public audio" on storage.objects for select
 do $$ begin
   alter publication supabase_realtime add table public.smash_comments;
 exception when duplicate_object then null; when undefined_object then null; end $$;
+
+notify pgrst, 'reload schema';
