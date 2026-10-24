@@ -299,6 +299,7 @@
     <div class="toggleRow"><span>BPM</span><input class="numIn" id="autoBpm" type="number" step="1" inputmode="decimal" value="120"></div>
     <div class="autoSide"><span>Instrumental genre</span><div class="autoPair"><input id="autoInstTag" list="genreList" value="industrial"><select id="autoInstEra"></select></div></div>
     <div class="autoSide"><span>Acapella genre</span><div class="autoPair"><input id="autoAcaTag" list="genreList" value="hard rock"><select id="autoAcaEra"></select></div></div>
+    <div class="toggleRow"><span>Saved songs only, no video searches</span><input type="checkbox" id="autoSaved" checked></div>
     <div class="btnRow"><button class="sbtn go" id="autoGo">Start</button><button class="sbtn" id="autoNextVoiceBtn">Next voice</button><button class="sbtn" id="autoNextBeatBtn">Next beat</button></div>
     <div id="autoStatus" class="mono"></div>
   </div>
@@ -2229,6 +2230,7 @@ $('helpShade').addEventListener('click', () => showHelp(false));
 })();
 
 /* ===== AUTOSMASH: pick a BPM and two genres, it chains beats and voices on its own ===== */
+function autoSavedHint() { return $('autoSaved').checked ? ' among saved songs, turn off Saved songs only to search wider' : ''; }
 const autoState = { on: false, busy: false, queues: {}, played: [], beatPick: null, voicePick: null, voiceEndAt: null, lastTry: 0 };
 (function () {
   const eras = '<option value="">Any decade</option>' + [1960, 1970, 1980, 1990, 2000, 2010, 2020].map(y => '<option value="' + y + '">' + y + 's</option>').join('');
@@ -2245,7 +2247,7 @@ function autoSettings() {
   store('auto', st);
   return st;
 }
-['autoBpm', 'autoInstTag', 'autoAcaTag', 'autoInstEra', 'autoAcaEra'].forEach(id => $(id).addEventListener('change', () => { autoState.queues = {}; autoSettings(); }));
+['autoBpm', 'autoInstTag', 'autoAcaTag', 'autoInstEra', 'autoAcaEra', 'autoSaved'].forEach(id => $(id).addEventListener('change', () => { autoState.queues = {}; autoSettings(); }));
 function autoSay() {
   const b = autoState.beatPick, v = autoState.voicePick;
   let h = '';
@@ -2260,12 +2262,12 @@ async function autoPick(side, targetBpm, spread) {
   const st = autoSettings();
   const tag = side === 'inst' ? st.instTag : st.acaTag;
   const era = side === 'inst' ? st.instEra : st.acaEra;
-  const key = side + '|' + tag + '|' + era + '|' + Math.round(targetBpm) + '|' + Math.round(spread || 6);
+  const key = side + '|' + tag + '|' + era + '|' + Math.round(targetBpm) + '|' + Math.round(spread || 6) + '|' + ($('autoSaved').checked ? 's' : 'a');
   const q = autoState.queues[key] || (autoState.queues[key] = []);
   while (q.length) { const c = q.shift(); if (!autoState.played.includes((c.title + '|' + c.artist).toLowerCase())) return c; }
   const skip = autoState.played.slice(-60).join(',');
   let d = null;
-  try { d = await (await fetch('/api/auto-pick?tag=' + encodeURIComponent(tag) + '&era=' + encodeURIComponent(era) + '&bpm=' + targetBpm + '&spread=' + Math.round(spread || 6) + '&skip=' + encodeURIComponent(skip))).json(); } catch (e) {}
+  try { d = await (await fetch('/api/auto-pick?tag=' + encodeURIComponent(tag) + '&era=' + encodeURIComponent(era) + '&bpm=' + targetBpm + '&spread=' + Math.round(spread || 6) + ($('autoSaved').checked ? '&cached=1&kind=' + side : '') + '&skip=' + encodeURIComponent(skip))).json(); } catch (e) {}
   if (!d || !d.picks || !d.picks.length) return null;
   q.push(...d.picks.slice(1));
   return d.picks[0];
@@ -2297,7 +2299,7 @@ async function autoFindVoice(targetBpm) {
       try { d = await (await fetch('/api/lyrics?title=' + encodeURIComponent(c.title) + '&artist=' + encodeURIComponent(c.artist))).json(); } catch (e) {}
       const lyr = d && d.results && d.results[0];
       if (!lyr) continue;
-      const vid = await autoVideo(c.title + ' ' + c.artist + ' acapella', ACA_WORDS, c.title);
+      const vid = await autoVideo((c.query || c.title + ' ' + c.artist) + ' acapella', ACA_WORDS, c.title);
       if (!vid) continue;
       return { c, lyr, vid };
     }
@@ -2311,7 +2313,7 @@ async function autoFindBeat(targetBpm) {
       const c = await autoPick('inst', targetBpm, spread);
       if (!c) break;
       autoMark(c);
-      const vid = await autoVideo(c.title + ' ' + c.artist + ' instrumental', /instrumental|karaoke|no vocals|backing track/i, c.title);
+      const vid = await autoVideo((c.query || c.title + ' ' + c.artist) + ' instrumental', /instrumental|karaoke|no vocals|backing track/i, c.title);
       if (vid) return { c, vid };
     }
   }
@@ -2337,10 +2339,10 @@ async function autoNextBeat() {
   const st = autoSettings();
   log('AUTOSMASH', 'finding a ' + st.acaTag + ' voice near ' + Math.round(st.bpm) + ' BPM first');
   const voice = await autoFindVoice(st.bpm);
-  if (!voice) { autoState.busy = false; autoFail('no ' + st.acaTag + ' acapellas near ' + Math.round(st.bpm) + ' BPM, try another genre, decade or BPM'); return; }
+  if (!voice) { autoState.busy = false; autoFail('no ' + st.acaTag + ' acapellas near ' + Math.round(st.bpm) + ' BPM' + autoSavedHint()); return; }
   log('AUTOSMASH', 'voice ready, ' + voice.c.title + ' at ' + Math.round(voice.c.bpm) + ' BPM, finding a ' + st.instTag + ' beat to match');
   const beat = await autoFindBeat(voice.c.bpm);
-  if (!beat) { autoState.busy = false; autoFail('no ' + st.instTag + ' instrumentals near ' + Math.round(voice.c.bpm) + ' BPM, try another genre or decade'); return; }
+  if (!beat) { autoState.busy = false; autoFail('no ' + st.instTag + ' instrumentals near ' + Math.round(voice.c.bpm) + ' BPM' + autoSavedHint()); return; }
   autoState.beatPick = beat.c;
   $('stretchOn').checked = true;
   $('snapOn').checked = true;
