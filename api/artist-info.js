@@ -19,20 +19,30 @@ export default async function handler(request) {
     const all = (rec && rec.recordings) || [];
     const wantT = norm(title), wantA = norm(artist);
     const exact = all.filter(r => norm(r.title) === wantT && norm(((r['artist-credit'] || [])[0] || {}).name).includes(wantA));
-    const pool = (exact.length ? exact : all).filter(r => r['first-release-date']);
-    pool.sort((x, y) => x['first-release-date'].localeCompare(y['first-release-date']));
-    const hit = pool[0] || all[0];
+    const base_ = exact.length ? exact : all;
+    const own = r => {
+      const ac = r['artist-credit'];
+      return !ac || !ac.length || norm(ac.map(x => x.name).join(' ')).includes(wantA);
+    };
+    const studio = r => r.status === 'Official' && r['release-group'] && r['release-group']['primary-type'] === 'Album' && !(r['release-group']['secondary-types'] || []).length && own(r);
+    let best = null;
+    for (const recn of base_) {
+      for (const rel of recn.releases || []) {
+        if (!studio(rel) || !rel.date) continue;
+        if (!best || rel.date < best.rel.date) best = { recn, rel };
+      }
+    }
+    const pool = base_.filter(r => r['first-release-date']).sort((x, y) => x['first-release-date'].localeCompare(y['first-release-date']));
+    const hit = best ? best.recn : (pool[0] || all[0]);
     if (hit) {
       const credit = hit['artist-credit'] && hit['artist-credit'][0];
       if (credit && credit.artist) artistId = credit.artist.id;
-      const releases = (hit.releases || []).slice().sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999'));
-      const isStudio = r => r['release-group'] && r['release-group']['primary-type'] === 'Album' && !(r['release-group']['secondary-types'] || []).length;
-      const firstAlbum = releases.find(r => isStudio(r) && r.status === 'Official') || releases.find(isStudio) || releases.find(r => r['release-group'] && r['release-group']['primary-type'] === 'Single') || releases[0];
+      const lengths = base_.map(r => r.length).filter(Boolean);
       song = {
         title: hit.title,
-        firstReleased: hit['first-release-date'] || null,
-        album: firstAlbum ? firstAlbum.title : null,
-        lengthSeconds: hit.length ? Math.round(hit.length / 1000) : null
+        firstReleased: (pool[0] && pool[0]['first-release-date']) || hit['first-release-date'] || null,
+        album: best ? best.rel.title : null,
+        lengthSeconds: hit.length ? Math.round(hit.length / 1000) : (lengths.length ? Math.round(lengths[0] / 1000) : null)
       };
     }
     await wait(1100);
