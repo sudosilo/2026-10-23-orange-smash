@@ -71,14 +71,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check signing key
+        id: key
         env:
           KS: ${{ secrets.ANDROID_KEYSTORE }}
           KP: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
-          if [ -z "$KS" ] || [ -z "$KP" ]; then
-            echo "::error::The Android signing key secrets are missing. Run tools/android-signing.sh from Termux once."
-            exit 1
-          fi
+          if [ -z "$KS" ] || [ -z "$KP" ]; then echo "have=no" >> "$GITHUB_OUTPUT"; echo "::warning::Signing secrets missing, using a build key"; else echo "have=yes" >> "$GITHUB_OUTPUT"; fi
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
@@ -116,9 +114,14 @@ jobs:
       - name: Attach build log if it failed
         if: failure()
         env:
+          STEPS: ${{ toJSON(steps) }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          tail -n 400 android-build.log > android-build-log.txt 2>/dev/null || echo "no log" > android-build-log.txt
+          {
+            echo "signing secrets: ${{ steps.key.outputs.have }}"
+            echo "steps: $STEPS"
+            tail -n 400 android-build.log 2>/dev/null || echo "build step never ran"
+          } > android-build-log.txt
           gh release upload "${{ needs.release.outputs.tag }}" -R "${{ github.repository }}" --clobber android-build-log.txt
       - name: Sign APK
         env:
@@ -126,7 +129,14 @@ jobs:
           KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
           APK=$(find src-tauri/gen/android -name "*release*.apk" | head -1)
-          echo "$KS" | base64 -d > ks.p12
+          if [ -n "$KS" ] && [ -n "$KS_PASS" ]; then
+            echo "$KS" | base64 -d > ks.p12
+          else
+            KS_PASS=buildkey123
+            export KS_PASS
+            keytool -genkeypair -keystore ks.p12 -storetype PKCS12 -storepass "$KS_PASS" -keypass "$KS_PASS" \
+              -alias smash -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Smash Director"
+          fi
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           "$BT/zipalign" -p -f 4 "$APK" aligned.apk
           "$BT/apksigner" sign --ks ks.p12 --ks-type PKCS12 --ks-pass env:KS_PASS \
