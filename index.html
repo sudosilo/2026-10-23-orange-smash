@@ -206,13 +206,13 @@
 
 <div id="mainView">
 <div class="lcd mono" id="lcd">
-  <div class="lcdTop"><span id="lcdLabel">NOW SMASHING</span><span id="lcdTag">NO TUNE</span></div>
+  <div class="lcdTop"><span id="lcdLabel">NOW SMASHING</span><span id="lcdTag">NO INSTRUMENTAL</span></div>
   <div class="nowRow">
     <div class="artStack"><div class="art"><svg width="28" height="28" viewBox="0 0 24 24"><path d="M12 3v10.6A4 4 0 1 0 14 17V7h4V3z" fill="#6f7d5c"/></svg><div id="tuneSlot"><div id="tunePlayer"></div></div></div><span class="artCap">BEAT</span></div>
     <div class="artStack"><div class="art small"><svg width="20" height="20" viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v7a3 3 0 0 0 3 3z" fill="#6f7d5c"/></svg><div id="acaSlot"><div id="acaPlayer"></div></div></div><span class="artCap">VOICE</span></div>
     <div class="nowText">
       <div class="title" id="title">Pick a tune</div>
-      <div class="artist" id="artist">Then pick the words</div>
+      <div class="artist" id="artist">Then pick the acapella</div>
       <div class="meta" id="meta">--</div>
     </div>
   </div>
@@ -228,9 +228,9 @@
 </div>
 
 <div class="transport" id="smashTransport">
-  <button class="key small" id="backBtn" aria-label="Words earlier">-1/4</button>
+  <button class="key small" id="backBtn" aria-label="Acapella earlier">-1/4</button>
   <button class="key big" id="playBtn" aria-label="Play"><svg viewBox="0 0 24 24"><path d="M7 5v14l12-7z"/></svg></button>
-  <button class="key small" id="fwdBtn" aria-label="Words later">+1/4</button>
+  <button class="key small" id="fwdBtn" aria-label="Acapella later">+1/4</button>
   <button class="key small" id="dropBtn" aria-label="Drop the acapella">DROP</button>
 </div>
 <div class="keyLabels mono" id="smashLabels"><span>EARLIER</span><span id="playLabel">PLAY</span><span>LATER</span><span id="dropLabel">ARM</span></div>
@@ -251,7 +251,7 @@
 
 <div id="smashPanel">
   <div class="card">
-    <div class="cardTitle"><span>Tune</span><span class="mono" id="tuneCount"></span></div>
+    <div class="cardTitle"><span>Instrumental</span><span class="mono" id="tuneCount"></span></div>
     <div class="searchRow"><input id="tuneInput" placeholder="Song or artist"><button class="sbtn" id="tuneFind">Find</button></div>
     <div class="toggleRow"><span>Instrumentals only</span><input type="checkbox" id="instOnly" checked></div>
     <div id="tuneResults"></div>
@@ -259,7 +259,7 @@
   </div>
 
   <div class="card">
-    <div class="cardTitle"><span>Words</span><span class="mono" id="wordsCount"></span></div>
+    <div class="cardTitle"><span>Acapella</span><span class="mono" id="wordsCount"></span></div>
     <div class="searchRow"><input id="wordsInput" placeholder="Song or artist"><button class="sbtn" id="wordsFind">Find</button></div>
     <div id="wordsResults" style="margin-top:6px;"></div>
     <div class="picked" id="wordsPicked"></div>
@@ -267,12 +267,12 @@
 
   <div class="card">
     <div class="cardTitle"><span>Stretch</span><span class="mono" id="ratioTag">1.000X</span></div>
-    <div class="toggleRow"><span>Tune BPM</span><input class="numIn" id="tuneBpm" type="number" step="0.1" inputmode="decimal"></div>
-    <div class="toggleRow"><span>Words BPM</span><input class="numIn" id="wordsBpm" type="number" step="0.1" inputmode="decimal"></div>
+    <div class="toggleRow"><span>Instrumental BPM</span><input class="numIn" id="tuneBpm" type="number" step="0.1" inputmode="decimal"></div>
+    <div class="toggleRow"><span>Acapella BPM</span><input class="numIn" id="wordsBpm" type="number" step="0.1" inputmode="decimal"></div>
     <div class="toggleRow"><span>How far off</span><span class="mono gapVal" id="gapVal">--</span></div>
     <div class="toggleRow"><span>Stretch the voice to the beat</span><input type="checkbox" id="stretchOn" checked></div>
-    <div class="toggleRow"><span>Words tempo</span><span class="ctl"><button class="seg" data-fold="0.5">HALF</button><button class="seg on" data-fold="1">1X</button><button class="seg" data-fold="2">DOUBLE</button></span></div>
-    <div class="toggleRow"><span>Words start</span><span class="ctl"><span class="mono readout" id="offsetVal">+0.00 s</span><button class="seg" id="offsetReset">RST</button></span></div>
+    <div class="toggleRow"><span>Acapella tempo</span><span class="ctl"><button class="seg" data-fold="0.5">HALF</button><button class="seg on" data-fold="1">1X</button><button class="seg" data-fold="2">DOUBLE</button></span></div>
+    <div class="toggleRow"><span>Acapella start</span><span class="ctl"><span class="mono readout" id="offsetVal">+0.00 s</span><button class="seg" id="offsetReset">RST</button></span></div>
   </div>
 
   <div class="card">
@@ -283,7 +283,7 @@
   </div>
 
   <div class="card">
-    <div class="cardTitle"><span>Acapella</span><span class="mono" id="acaTag">PICK WORDS FIRST</span></div>
+    <div class="cardTitle"><span>Acapella drop</span><span class="mono" id="acaTag">PICK AN ACAPELLA FIRST</span></div>
     <div class="toggleRow"><span>Play the acapella</span><input type="checkbox" id="acaOn" checked></div>
     <div class="toggleRow"><span>Start from</span><select class="cueSel" id="cueSel"><option value="0">0:00 top of the song</option></select></div>
     <div class="toggleRow"><span>Acapella shift</span><span class="ctl"><button class="seg" data-as="-0.1">-</button><span class="mono readout" id="asVal">+0.0 s</span><button class="seg" data-as="0.1">+</button><button class="seg" data-as="0">RST</button></span></div>
@@ -292,7 +292,7 @@
     <div class="toggleRow"><span>Fine tune the drop</span><span class="ctl"><button class="seg" data-dt="-0.05">-50</button><button class="seg" data-dt="-0.01">-10</button><button class="seg" data-dt="0.01">+10</button><button class="seg" data-dt="0.05">+50</button><span class="mono" style="font-size:10px;color:var(--ink-faint)">MS</span></span></div>
     <div class="toggleRow"><span>Start over, everything buffered</span><button class="seg" id="restartBtn">FROM THE TOP</button></div>
     <div id="dropLog" style="margin-top:4px;"></div>
-    <div class="acaRow"><div id="acaInfo"><span style="color:var(--ink-faint)">Pick words and the vocal only version loads here</span></div></div>
+    <div class="acaRow"><div id="acaInfo"><span style="color:var(--ink-faint)">Pick an acapella and the vocal only version loads here</span></div></div>
     <div id="acaResults" style="margin-top:6px;"></div>
   </div>
 </div>
@@ -622,20 +622,20 @@ function nudgeDrop(d) {
   else { offsetSec += d; renderOffset(); }
   lastIdx = -2; acaLastSync = 0;
 }
-$('backBtn').addEventListener('click', () => { nudgeDrop(-quarterBeat()); log('NUDGE', 'words land earlier'); });
-$('fwdBtn').addEventListener('click', () => { nudgeDrop(quarterBeat()); log('NUDGE', 'words land later'); });
+$('backBtn').addEventListener('click', () => { nudgeDrop(-quarterBeat()); log('NUDGE', 'acapella lands earlier'); });
+$('fwdBtn').addEventListener('click', () => { nudgeDrop(quarterBeat()); log('NUDGE', 'acapella lands later'); });
 $('offsetReset').addEventListener('click', () => { offsetSec = 0; setArmed(true); renderOffset(); lastIdx = -2; });
 $('stretchOn').addEventListener('change', () => { acaRateSet = null; renderRatio(); renderSmashHeader(); });
 
 function renderSmashHeader() {
   if (mode !== 'smash') return;
-  $('title').textContent = tune ? tune.title : 'Pick a tune';
-  $('artist').textContent = words ? 'Words: ' + words.title + ' / ' + words.artist : 'Then pick the words';
-  $('lcdTag').textContent = tune && words ? 'READY' : tune ? 'NEEDS WORDS' : 'NO TUNE';
+  $('title').textContent = tune ? tune.title : 'Pick an instrumental';
+  $('artist').textContent = words ? 'Acapella: ' + words.title + ' / ' + words.artist : 'Then pick the acapella';
+  $('lcdTag').textContent = tune && words ? 'READY' : tune ? 'NEEDS ACAPELLA' : 'NO INSTRUMENTAL';
   const tb = parseFloat($('tuneBpm').value), wb = parseFloat($('wordsBpm').value);
   const bits = [];
-  bits.push(tb > 0 ? 'TUNE ' + Math.round(tb) : 'TUNE --');
-  bits.push(wb > 0 ? 'WORDS ' + Math.round(wb * fold) : 'WORDS --');
+  bits.push(tb > 0 ? 'INST ' + Math.round(tb) : 'INST --');
+  bits.push(wb > 0 ? 'ACAP ' + Math.round(wb * fold) : 'ACAP --');
   bits.push(ratio().toFixed(3) + 'X');
   $('meta').textContent = bits.join(' / ');
 }
@@ -697,7 +697,7 @@ function pickTune(t) {
   loadTune(false);
   lookupBpm(t.title, '', 'tuneBpm');
   renderSmashHeader();
-  log('TUNE', 'loaded ' + t.title);
+  log('INSTRUMENTAL', 'loaded ' + t.title);
 }
 
 /* words search */
@@ -741,7 +741,7 @@ function pickWords(r) {
   findAcapella(r.title, r.artist);
   lookupBpm(r.title, r.artist, 'wordsBpm').then(() => { words.bpm = parseFloat($('wordsBpm').value) || null; renderStats(words); });
   renderSmashHeader();
-  log('WORDS', 'loaded ' + lines.length + ' timed lines from ' + r.title);
+  log('ACAPELLA', 'loaded ' + lines.length + ' timed lines from ' + r.title);
 }
 $('wordsBpm').addEventListener('change', () => { if (words) { words.bpm = parseFloat($('wordsBpm').value) || null; renderStats(words); } });
 
@@ -769,7 +769,7 @@ function ensurePlayer(cb) {
       events: {
         onReady: () => { playerReady = true; readyQueue.splice(0).forEach(f => f()); },
         onStateChange: (e) => { playerState = e.data; renderPlayKey(); if (e.data === 0) { wantPlay = false; log('END', 'tune finished'); } },
-        onError: (e) => { log('TUNE', 'this upload blocks embedded play, error ' + (e && e.data) + ', pick another'); wantPlay = false; renderPlayKey(); }
+        onError: (e) => { log('INSTRUMENTAL', 'this upload blocks embedded play, error ' + (e && e.data) + ', pick another'); wantPlay = false; renderPlayKey(); }
       }
     });
     if (cb) readyQueue.push(cb);
@@ -797,14 +797,14 @@ function renderPlayKey() {
   if (mode === 'smash') setLink(playing ? 'ok' : (playerState === 3 ? 'busy' : ''), playing ? 'SMASHING' : (playerState === 3 ? 'LOADING' : 'STANDBY'));
 }
 $('playBtn').addEventListener('click', () => {
-  if (!tune) { log('PLAY', 'pick a tune first'); return; }
+  if (!tune) { log('PLAY', 'pick an instrumental first'); return; }
   if (playerState === 1) { pauseTune(); return; }
   if (snapReady() && playerState === 2) {
     try { const t = player.getCurrentTime() || 0; player.seekTo(Math.max(0, snapFloor(t)), true); } catch (e) {}
   }
   wantPlay = true;
   loadTune(true);
-  if (!words) log('PLAY', 'tune only, pick words to smash on top');
+  if (!words) log('PLAY', 'instrumental only, pick an acapella to smash on top');
 });
 
 function smashTick() {
@@ -968,7 +968,7 @@ function renderPhase() {
   const step = snapReady() ? (snapMult === 0.5 ? '1/2' : snapMult === 4 ? 'BAR' : '1') : '1/4';
   $('backBtn').textContent = '-' + step;
   $('fwdBtn').textContent = '+' + step;
-  $('snapTag').textContent = !$('snapOn').checked ? 'OFF' : (parseFloat($('tuneBpm').value) > 0 ? (snapMult === 0.5 ? 'HALF BEAT' : snapMult === 4 ? 'BAR' : 'BEAT') + ' GRID' : 'NEEDS TUNE BPM');
+  $('snapTag').textContent = !$('snapOn').checked ? 'OFF' : (parseFloat($('tuneBpm').value) > 0 ? (snapMult === 0.5 ? 'HALF BEAT' : snapMult === 4 ? 'BAR' : 'BEAT') + ' GRID' : 'NEEDS INSTRUMENTAL BPM');
 }
 function savePhase() { if (tune) { const m = recall('phase') || {}; m[tune.videoId] = gridPhase; store('phase', m); } }
 function loadPhase() { const m = recall('phase') || {}; gridPhase = tune && typeof m[tune.videoId] === 'number' ? m[tune.videoId] : 0; renderPhase(); }
@@ -982,7 +982,7 @@ document.querySelectorAll('[data-ph]').forEach(b => b.addEventListener('click', 
   renderPhase(); savePhase();
 }));
 $('beatOneBtn').addEventListener('click', () => {
-  if (playerState !== 1) { log('BEAT ONE', 'play the tune and tap set right on a downbeat'); return; }
+  if (playerState !== 1) { log('BEAT ONE', 'play the instrumental and tap set right on a downbeat'); return; }
   let t = 0;
   try { t = player.getCurrentTime() || 0; } catch (e) {}
   const bar = 60 / (parseFloat($('tuneBpm').value) || 120) * 4;
@@ -1085,15 +1085,15 @@ function fireDrop(at) {
   acaLastSync = Date.now();
 }
 $('dropBtn').addEventListener('click', () => {
-  if (!words) { log('DROP', 'pick words first'); return; }
+  if (!words) { log('DROP', 'pick an acapella first'); return; }
   let t = 0;
   try { t = player.getCurrentTime() || 0; } catch (e) {}
   if (!waiting(t)) { setArmed(true); log('ARM', 'voice parked at ' + fmt(cueT) + ', tap drop on the beat'); return; }
-  if (playerState !== 1) { log('DROP', 'start the tune first, then drop on the beat'); return; }
+  if (playerState !== 1) { log('DROP', 'start the instrumental first, then drop on the beat'); return; }
   const landAt = snapReady() ? snapNearest(t) : t;
   setDropAt(landAt, 'tapped' + (landAt !== t ? ', snapped ' + Math.round((landAt - t) * 1000) + ' ms' : ''));
   if (landAt <= t + 0.02) { dropTimerFor = dropAt; fireDrop(dropAt); }
-  log('DROP', 'dropped at ' + dropAt.toFixed(3) + ' s of the tune, it is saved in your drops');
+  log('DROP', 'dropped at ' + dropAt.toFixed(3) + ' s of the instrumental, it is saved in your drops');
 });
 $('dropIn').addEventListener('change', () => {
   const v = parseFloat($('dropIn').value);
@@ -1108,7 +1108,7 @@ document.querySelectorAll('[data-dt]').forEach(b => b.addEventListener('click', 
   log('DROP', 'drop moved to ' + dropAt.toFixed(3) + ' s');
 }));
 $('restartBtn').addEventListener('click', () => {
-  if (!tune) { log('RESTART', 'pick a tune first'); return; }
+  if (!tune) { log('RESTART', 'pick an instrumental first'); return; }
   pauseAca(); acaParkedAt = null; dropTimerFor = null; lastIdx = -2;
   wantPlay = true;
   ensurePlayer(() => {
@@ -1645,7 +1645,7 @@ function currentRecipe() {
 
 async function startSample() {
   const recipe = currentRecipe();
-  if (!recipe) { log('SAMPLE', mode === 'live' ? 'listen and lock a song first' : 'pick a tune first'); return; }
+  if (!recipe) { log('SAMPLE', mode === 'live' ? 'listen and lock a song first' : 'pick an instrumental first'); return; }
   if (!(await openMic())) return;
   sampRecipe = recipe;
   sampChunks = [];
@@ -1768,8 +1768,8 @@ let infoSig = '', infoCache = recall('artistinfo') || {};
 function infoTargets() {
   const out = [];
   if (mode === 'smash') {
-    if (words) out.push({ label: 'WORDS: ' + words.artist, artist: words.artist, title: words.title });
-    if (tune) { const sp = splitYt(tune.title, tune.channel); if (sp.artist) out.push({ label: 'BEAT: ' + sp.artist, artist: sp.artist, title: sp.title }); }
+    if (words) out.push({ label: 'ACAPELLA: ' + words.artist, artist: words.artist, title: words.title });
+    if (tune) { const sp = splitYt(tune.title, tune.channel); if (sp.artist) out.push({ label: 'INSTRUMENTAL: ' + sp.artist, artist: sp.artist, title: sp.title }); }
   } else if (mode === 'karaoke') {
     if (live) out.push({ label: live.artist, artist: live.artist, title: live.title });
   } else {
@@ -1837,16 +1837,16 @@ async function showAlbum(id, artistName, back) {
   let h = '<div class="btnRow" style="margin-top:0"><button class="seg" id="albumBack">BACK TO ' + esc((artistName || 'ARTIST').toUpperCase().slice(0, 24)) + '</button></div>';
   if (!d || !d.tracks) { $('infoBody').innerHTML = h + '<div style="color:var(--ink-faint);margin-top:8px">' + esc(d && d.error ? d.error : 'Nothing found') + '</div>'; $('albumBack').onclick = back; return; }
   h += '<div style="display:flex;gap:12px;align-items:center;margin-top:10px"><img alt="" src="' + esc(d.cover) + '" style="width:96px;height:96px;border-radius:8px;object-fit:cover;background:var(--lcd-edge);flex:none" onerror="this.style.visibility=\'hidden\'"><div><div class="infoHead">' + esc(d.title) + '</div><div class="infoSub">' + esc([artist, d.released].filter(Boolean).join(' / ')) + '</div></div></div>';
-  h += '<div class="infoRow" style="margin-top:8px"><b>Tracks, use one as the words or the beat</b></div>';
+  h += '<div class="infoRow" style="margin-top:8px"><b>Tracks, use one as the acapella or the instrumental</b></div>';
   $('infoBody').innerHTML = h;
   const list = document.createElement('div');
   d.tracks.forEach(t => {
     const row = document.createElement('div');
     row.className = 'sampRow';
     row.innerHTML = '<div class="rt"><div>' + esc((t.disc ? t.disc + '.' : '') + t.n + '  ' + t.title) + '</div><div class="rs">' + esc(t.lengthSeconds ? fmt(t.lengthSeconds) : '') + '</div></div>';
-    const w = document.createElement('button'); w.className = 'seg'; w.textContent = 'WORDS';
+    const w = document.createElement('button'); w.className = 'seg'; w.textContent = 'ACAPELLA';
     w.addEventListener('click', () => useAsWords(t.title, artist));
-    const bt = document.createElement('button'); bt.className = 'seg'; bt.textContent = 'BEAT';
+    const bt = document.createElement('button'); bt.className = 'seg'; bt.textContent = 'INSTRUMENTAL';
     bt.addEventListener('click', () => useAsBeat(t.title, artist));
     row.appendChild(w); row.appendChild(bt);
     list.appendChild(row);
@@ -1857,14 +1857,14 @@ async function showAlbum(id, artistName, back) {
 async function useAsWords(title, artist) {
   if (mode !== 'smash') setMode('smash');
   window.scrollTo({ top: 0, behavior: 'smooth' });
-  log('WORDS', 'pulling timed lyrics for ' + title);
+  log('ACAPELLA', 'pulling timed lyrics for ' + title);
   let d = null;
   try { d = await (await fetch('/api/lyrics?title=' + encodeURIComponent(title) + '&artist=' + encodeURIComponent(artist))).json(); } catch (e) {}
   const hit = d && d.results && d.results[0];
   if (hit) { pickWords(hit); return; }
   $('wordsInput').value = title + ' ' + artist;
   findWords();
-  log('WORDS', 'no exact match, pick from the list');
+  log('ACAPELLA', 'no exact match, pick from the list');
 }
 async function useAsBeat(title, artist) {
   if (mode !== 'smash') setMode('smash');
