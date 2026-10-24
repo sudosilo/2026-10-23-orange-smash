@@ -4,9 +4,12 @@
 # Run:  bash tools/seed-cache.sh            (Deezer charts, every genre)
 #       bash tools/seed-cache.sh 200        (stop after 200 songs)
 #       bash tools/seed-cache.sh 0 list.txt (your own list, one "Title|Artist" per line)
+#       bash tools/seed-cache.sh bottom     (second phone: same list, starting from the last song)
 
 API="https://offset-listener.vercel.app/api/seed-search"
 WORK="$HOME/.smash-seed"
+REVERSE=0
+if [ "$1" = "bottom" ]; then REVERSE=1; shift; fi
 LIMIT="${1:-0}"
 LIST_FILE="$2"
 mkdir -p "$WORK"
@@ -30,6 +33,7 @@ else
   done
 fi
 sort -u -o "$SONGS" "$SONGS"
+if [ "$REVERSE" = "1" ]; then tac "$SONGS" > "$SONGS.rev" && mv "$SONGS.rev" "$SONGS"; echo "starting from the bottom of the list"; fi
 TOTAL=$(wc -l < "$SONGS")
 echo "songs to cover: $TOTAL"
 
@@ -43,6 +47,8 @@ while IFS=$'\t' read -r title artist; do
   for kind in acapella instrumental; do
     q="$title $artist $kind"
     grep -Fxq "$q" "$DONE" && continue
+    already=$(curl -s -X POST -H 'content-type: application/json' --data "$(jq -n --arg q "$q" '{query: $q, checkOnly: true}')" "$API" | jq -r '.cached // false')
+    if [ "$already" = "true" ]; then echo "$q" >> "$DONE"; echo "[$count/$TOTAL] $title / $artist / $kind: already in the cache, skipped"; continue; fi
     lines=""
     reason=""
     for wait in 30 90 240; do
