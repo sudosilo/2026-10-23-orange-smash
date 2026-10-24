@@ -53,7 +53,8 @@
   @keyframes blink { 50% { opacity: .25; } }
 
   .modeRow { display: flex; gap: 6px; margin: 14px 0 8px; }
-  .modeRow .seg { flex: 1; padding: 10px 0; font-size: 10px; letter-spacing: .5px; min-width: 0; }
+  .modeRow { flex-wrap: wrap; }
+  .modeRow .seg { flex: 1 1 30%; padding: 10px 0; font-size: 10px; letter-spacing: .5px; min-width: 0; }
 
   .card { background: var(--panel); border: 1px solid var(--chassis-edge); border-radius: 14px; padding: 12px; margin-top: 12px; box-shadow: inset 0 1px 0 #fff; }
   .cardTitle { font-size: 10px; letter-spacing: 2px; color: var(--ink-faint); text-transform: uppercase; margin-bottom: 8px; display: flex; justify-content: space-between; gap: 8px; }
@@ -195,6 +196,13 @@
   .helpText p { font-size: 13px; line-height: 1.55; margin: 0 0 10px; color: var(--ink-soft); }
   .helpText b { color: var(--ink); }
 
+  .c-auto { border-left-color: #1f8a8a; } .c-auto .cardTitle { color: #1f8a8a; }
+  .autoSide { padding: 6px 0; border-top: 1px solid #e6e2d9; font-size: 13px; }
+  .autoPair { display: flex; gap: 6px; margin-top: 4px; }
+  .autoPair input { flex: 1; min-width: 0; padding: 9px; border-radius: 8px; border: 1px solid var(--chassis-edge); background: #fff; color: var(--ink); font: 15px -apple-system, Roboto, sans-serif; }
+  .autoPair select { flex: none; padding: 9px 6px; border-radius: 8px; border: 1px solid var(--chassis-edge); background: #fff; color: var(--ink); font: 14px -apple-system, Roboto, sans-serif; }
+  #autoStatus { margin-top: 10px; font-size: 12px; line-height: 1.6; color: var(--ink-soft); }
+
   .hide { display: none !important; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
@@ -220,6 +228,7 @@
     <p><b>Stretch</b> speeds the voice up or slows it down to the beat's BPM, or turn it off to keep the original speed. <b>Snap</b> lands drops, nudges and restarts on the beat. Play the instrumental and tap SET on a downbeat to anchor the grid.</p>
     <p><b>Live karaoke</b> listens to a song playing around you, names it, and rolls its lyrics in time. The NOW line is the one being sung, NEXT is coming up, and the bar between them fills as it gets close.</p>
     <p><b>Live smash</b> listens the same way, then plays that song's instrumental in sync with the room and suggests other songs at the same BPM. Pick one and its acapella drops in on the next bar. Search the suggestions by name, or type a number like 120 to find songs at that BPM.</p>
+    <p><b>Autosmash</b> runs by itself. Pick a BPM, a genre and decade for the beat, and a genre and decade for the voice, then tap Start. It finds an instrumental at that tempo, drops in an acapella from the other genre on the bar, and when that voice finishes the next one comes in. Next voice and Next beat skip ahead.</p>
     <p><b>Samples</b> records whatever is playing. Tap the sample bar to start and again to stop. It saves the sound plus a recipe that rebuilds the smash, and REPLAY plays it back. Signed in, samples go to your profile and show up on every phone.</p>
     <p><b>Artist info</b> pulls the band, members, genres and albums for anyone on screen. Tap an album to see its tracks and use any track as the acapella or the instrumental.</p>
     <p>Tap any card title to fold it away.</p>
@@ -235,6 +244,7 @@
   <button class="seg on" data-mode="smash">SMASH</button>
   <button class="seg" data-mode="karaoke">LIVE KARAOKE</button>
   <button class="seg" data-mode="live">LIVE SMASH</button>
+  <button class="seg" data-mode="auto">AUTOSMASH</button>
   <button class="seg" data-view="samples">SAMPLES</button>
 </div>
 
@@ -282,6 +292,18 @@
 
 <button class="sampleBtn" id="sampleBtn"><span class="rec"></span><span id="sampleLabel">TAP TO SAMPLE</span></button>
 <div id="ack" class="mono"></div>
+
+<div id="autoPanel" class="hide">
+  <div class="card c-auto" id="autoCard">
+    <div class="cardTitle"><span>Autosmash</span><span></span></div>
+    <div class="toggleRow"><span>BPM</span><input class="numIn" id="autoBpm" type="number" step="1" inputmode="decimal" value="120"></div>
+    <div class="autoSide"><span>Instrumental genre</span><div class="autoPair"><input id="autoInstTag" list="genreList" value="industrial"><select id="autoInstEra"></select></div></div>
+    <div class="autoSide"><span>Acapella genre</span><div class="autoPair"><input id="autoAcaTag" list="genreList" value="hard rock"><select id="autoAcaEra"></select></div></div>
+    <div class="btnRow"><button class="sbtn go" id="autoGo">Start</button><button class="sbtn" id="autoNextVoiceBtn">Next voice</button><button class="sbtn" id="autoNextBeatBtn">Next beat</button></div>
+    <div id="autoStatus" class="mono"></div>
+  </div>
+</div>
+<datalist id="genreList"><option value="industrial"><option value="hard rock"><option value="heavy metal"><option value="hip hop"><option value="rap"><option value="pop"><option value="synthpop"><option value="new wave"><option value="funk"><option value="disco"><option value="soul"><option value="r&amp;b"><option value="rock"><option value="classic rock"><option value="punk"><option value="grunge"><option value="alternative rock"><option value="house"><option value="techno"><option value="drum and bass"><option value="dubstep"><option value="trap"><option value="reggae"><option value="country"><option value="blues"><option value="jazz"><option value="electronic"><option value="indie rock"><option value="emo"><option value="trip hop"></datalist>
 
 <div id="smashPanel">
   <div class="card c-inst">
@@ -511,19 +533,23 @@ function clearLyrics() { lastIdx = -2; $('lyrCur').textContent = ''; $('lyrNext'
 
 /* mode switch */
 let mode = 'smash';
+function isSmashy() { return mode === 'smash' || mode === 'auto'; }
 function setMode(m) {
   mode = m;
   document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('on', b.getAttribute('data-mode') === m));
-  const groups = { smash: ['smashPanel', 'smashTransport', 'smashLabels'], karaoke: ['karaokePanel', 'karaokeTransport', 'karaokeLabels'], live: ['livePanel', 'liveTransport', 'liveLabels'] };
-  Object.keys(groups).forEach(k => groups[k].forEach(id => $(id).classList.toggle('hide', k !== m)));
+  const groups = { smash: ['smashPanel', 'smashTransport', 'smashLabels'], karaoke: ['karaokePanel', 'karaokeTransport', 'karaokeLabels'], live: ['livePanel', 'liveTransport', 'liveLabels'], auto: ['autoPanel'] };
+  const show = new Set(groups[m] || []);
+  if (m === 'auto') { show.add('smashTransport'); show.add('smashLabels'); }
+  Object.keys(groups).forEach(k => groups[k].forEach(id => $(id).classList.toggle('hide', !show.has(id))));
+  if (m !== 'auto' && autoState.on) autoStop();
   $('sampleBtn').classList.toggle('hide', m === 'karaoke');
   if (sampling && m === 'karaoke') stopSample();
   clearLyrics();
   pauseTune();
   if (m !== 'karaoke' && karaokeTimer) { clearTimeout(karaokeTimer); karaokeTimer = null; }
   if (m !== 'live' && liveTimer) { clearTimeout(liveTimer); liveTimer = null; }
-  if (m === 'smash') {
-    $('lcdLabel').textContent = 'NOW SMASHING';
+  if (m === 'smash' || m === 'auto') {
+    $('lcdLabel').textContent = m === 'auto' ? 'AUTOSMASH' : 'NOW SMASHING';
     loadedVideo = null;
     if (tune) loadTune(false);
     if (aca && acaReady) { acaLoaded = null; try { acaPlayer.cueVideoById(aca.videoId, 0); acaLoaded = aca.videoId; } catch (e) {} }
@@ -669,7 +695,7 @@ $('offsetReset').addEventListener('click', () => { offsetSec = 0; setArmed(true)
 $('stretchOn').addEventListener('change', () => { acaRateSet = null; renderRatio(); renderSmashHeader(); });
 
 function renderSmashHeader() {
-  if (mode !== 'smash') return;
+  if (!isSmashy()) return;
   $('title').textContent = tune ? tune.title : 'Pick an instrumental';
   $('artist').textContent = words ? 'Acapella: ' + words.title + ' / ' + words.artist : 'Then pick the acapella';
   $('lcdTag').textContent = tune && words ? 'READY' : tune ? 'NEEDS ACAPELLA' : 'NO INSTRUMENTAL';
@@ -736,7 +762,8 @@ function pickTune(t) {
   $('tunePicked').innerHTML = esc(t.title) + '<div class="ps">' + esc(t.channel || '') + '</div>';
   $('tunePicked').classList.add('on');
   loadTune(false);
-  lookupBpm(t.title, '', 'tuneBpm');
+  if (t.bpm) { $('tuneBpm').value = t.bpm; renderRatio(); }
+  else lookupBpm(t.title, '', 'tuneBpm');
   renderSmashHeader();
   log('INSTRUMENTAL', 'loaded ' + t.title);
 }
@@ -779,8 +806,9 @@ function pickWords(r) {
   buildCueList(lines);
   setArmed(true);
   loadDropLog();
-  findAcapella(r.title, r.artist);
-  lookupBpm(r.title, r.artist, 'wordsBpm').then(() => { words.bpm = parseFloat($('wordsBpm').value) || null; renderStats(words); });
+  acaSearch = findAcapella(r.title, r.artist);
+  if (r.bpm) { $('wordsBpm').value = r.bpm; words.bpm = r.bpm; renderRatio(); renderStats(words); }
+  else lookupBpm(r.title, r.artist, 'wordsBpm').then(() => { words.bpm = parseFloat($('wordsBpm').value) || null; renderStats(words); });
   renderSmashHeader();
   log('ACAPELLA', 'loaded ' + lines.length + ' timed lines from ' + r.title);
 }
@@ -835,7 +863,7 @@ function renderPlayKey() {
   $('playBtn').innerHTML = playing ? ICON_PAUSE : ICON_PLAY;
   $('playLabel').textContent = playing ? 'PAUSE' : 'PLAY';
   $('tuneSlot').classList.toggle('on', playing || playerState === 2 || playerState === 3);
-  if (mode === 'smash') setLink(playing ? 'ok' : (playerState === 3 ? 'busy' : ''), playing ? 'SMASHING' : (playerState === 3 ? 'LOADING' : 'STANDBY'));
+  if (isSmashy()) setLink(playing ? 'ok' : (playerState === 3 ? 'busy' : ''), playing ? 'SMASHING' : (playerState === 3 ? 'LOADING' : 'STANDBY'));
 }
 $('playBtn').addEventListener('click', () => {
   if (!tune) { log('PLAY', 'pick an instrumental first'); return; }
@@ -849,7 +877,7 @@ $('playBtn').addEventListener('click', () => {
 });
 
 function smashTick() {
-  if (mode !== 'smash' || !player || !playerReady || typeof player.getCurrentTime !== 'function') return;
+  if (!isSmashy() || !player || !playerReady || typeof player.getCurrentTime !== 'function') return;
   let t = 0, dur = 0;
   try { t = player.getCurrentTime() || 0; dur = player.getDuration() || 0; } catch (e) { return; }
   $('elapsed').textContent = fmt(t);
@@ -891,6 +919,7 @@ function ensureAcaPlayer(cb) {
   });
 }
 
+let acaSearch = null;
 async function findAcapella(title, artist) {
   aca = null; acaLoaded = null; acaRateSet = null;
   pauseAca();
@@ -1115,7 +1144,7 @@ function showArmed(t) {
   lastIdx = -2;
 }
 function fireDrop(at) {
-  if (mode !== 'smash' || dropAt !== at || playerState !== 1 || !aca || !acaReady || !$('acaOn').checked) return;
+  if (!isSmashy() || dropAt !== at || playerState !== 1 || !aca || !acaReady || !$('acaOn').checked) return;
   acaWarming = false; warmToken++;
   let t = at;
   try { t = player.getCurrentTime() || at; } catch (e) {}
@@ -1647,7 +1676,7 @@ function stamp() {
   return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
 }
 function currentRecipe() {
-  if (mode === 'smash') {
+  if (isSmashy()) {
     if (!tune) return null;
     let t = 0; try { t = player.getCurrentTime() || 0; } catch (e) {}
     return {
@@ -1811,7 +1840,7 @@ renderSamples();
 let infoSig = '', infoCache = recall('artistinfo') || {};
 function infoTargets() {
   const out = [];
-  if (mode === 'smash') {
+  if (isSmashy()) {
     if (words) out.push({ label: 'ACAPELLA: ' + words.artist, artist: words.artist, title: words.title });
     if (tune) { const sp = splitYt(tune.title, tune.channel); if (sp.artist) out.push({ label: 'INSTRUMENTAL: ' + sp.artist, artist: sp.artist, title: sp.title }); }
   } else if (mode === 'karaoke') {
@@ -2199,8 +2228,151 @@ $('helpShade').addEventListener('click', () => showHelp(false));
   });
 })();
 
+/* ===== AUTOSMASH: pick a BPM and two genres, it chains beats and voices on its own ===== */
+const autoState = { on: false, busy: false, queues: {}, played: [], beatPick: null, voicePick: null, voiceEndAt: null, lastTry: 0 };
+(function () {
+  const eras = '<option value="">Any decade</option>' + [1960, 1970, 1980, 1990, 2000, 2010, 2020].map(y => '<option value="' + y + '">' + y + 's</option>').join('');
+  $('autoInstEra').innerHTML = eras; $('autoAcaEra').innerHTML = eras;
+  const saved = recall('auto') || {};
+  if (saved.bpm) $('autoBpm').value = saved.bpm;
+  if (saved.instTag) $('autoInstTag').value = saved.instTag;
+  if (saved.acaTag) $('autoAcaTag').value = saved.acaTag;
+  $('autoInstEra').value = saved.instEra || '';
+  $('autoAcaEra').value = saved.acaEra || (saved.acaTag ? '' : '1980');
+})();
+function autoSettings() {
+  const st = { bpm: parseFloat($('autoBpm').value) || 120, instTag: $('autoInstTag').value.trim(), instEra: $('autoInstEra').value, acaTag: $('autoAcaTag').value.trim(), acaEra: $('autoAcaEra').value };
+  store('auto', st);
+  return st;
+}
+['autoBpm', 'autoInstTag', 'autoAcaTag', 'autoInstEra', 'autoAcaEra'].forEach(id => $(id).addEventListener('change', () => { autoState.queues = {}; autoSettings(); }));
+function autoSay() {
+  const b = autoState.beatPick, v = autoState.voicePick;
+  let h = '';
+  h += 'BEAT  ' + (b ? esc(b.title + ' / ' + b.artist + ' / ' + Math.round(b.bpm) + ' BPM') : (autoState.on ? 'finding one' : '--')) + '<br>';
+  h += 'VOICE ' + (v ? esc(v.title + ' / ' + v.artist + ' / ' + Math.round(v.bpm) + ' BPM') : (autoState.on && b ? 'finding one' : '--'));
+  let t = 0; try { t = player.getCurrentTime() || 0; } catch (e) {}
+  if (autoState.on && dropAt !== null && t < dropAt) h += '<br>DROPS IN ' + Math.max(0, dropAt - t).toFixed(1) + ' S';
+  else if (autoState.on && autoState.voiceEndAt) h += '<br>NEXT VOICE IN ' + fmt(Math.max(0, autoState.voiceEndAt - t));
+  $('autoStatus').innerHTML = h;
+}
+async function autoPick(side, targetBpm) {
+  const st = autoSettings();
+  const tag = side === 'inst' ? st.instTag : st.acaTag;
+  const era = side === 'inst' ? st.instEra : st.acaEra;
+  const key = side + '|' + tag + '|' + era + '|' + Math.round(targetBpm);
+  const q = autoState.queues[key] || (autoState.queues[key] = []);
+  while (q.length) { const c = q.shift(); if (!autoState.played.includes((c.title + '|' + c.artist).toLowerCase())) return c; }
+  const skip = autoState.played.slice(-60).join(',');
+  let d = null;
+  try { d = await (await fetch('/api/auto-pick?tag=' + encodeURIComponent(tag) + '&era=' + encodeURIComponent(era) + '&bpm=' + targetBpm + '&skip=' + encodeURIComponent(skip))).json(); } catch (e) {}
+  if (!d || !d.picks || !d.picks.length) { log('AUTOSMASH', (d && d.error) || 'no ' + tag + ' songs near ' + Math.round(targetBpm) + ' BPM this round, trying again'); return null; }
+  q.push(...d.picks.slice(1));
+  return d.picks[0];
+}
+function autoMark(c) { autoState.played.push((c.title + '|' + c.artist).toLowerCase()); if (autoState.played.length > 200) autoState.played.shift(); }
+async function autoVideo(q, re) {
+  let d = null;
+  try { d = await (await fetch('/api/youtube-search?q=' + encodeURIComponent(q))).json(); } catch (e) {}
+  const rows = (d && d.results ? d.results : []).filter(r => re.test(decodeHtml(r.title)));
+  return rows[0] || null;
+}
+async function autoNextBeat() {
+  if (autoState.busy) return;
+  autoState.busy = true;
+  autoState.beatPick = null; autoState.voicePick = null; autoState.voiceEndAt = null;
+  setArmed(true);
+  autoSay();
+  const st = autoSettings();
+  for (let tries = 0; tries < 6 && autoState.on; tries++) {
+    const c = await autoPick('inst', st.bpm);
+    if (!c) { await new Promise(r => setTimeout(r, 1500)); continue; }
+    autoMark(c);
+    const v = await autoVideo(c.title + ' ' + c.artist + ' instrumental', /instrumental|karaoke|no vocals|backing track|beat/i);
+    if (!v) continue;
+    autoState.beatPick = c;
+    $('stretchOn').checked = true;
+    $('snapOn').checked = true;
+    pickTune({ videoId: v.videoId, title: decodeHtml(v.title), channel: decodeHtml(v.channel), bpm: c.bpm * (c.fold || 1) });
+    wantPlay = true;
+    loadTune(true);
+    break;
+  }
+  autoState.busy = false;
+  if (autoState.on && autoState.beatPick) autoNextVoice();
+  else if (autoState.on) log('AUTOSMASH', 'could not find a beat, try another genre or BPM');
+  autoSay();
+}
+async function autoNextVoice() {
+  if (autoState.busy || !autoState.on) return;
+  autoState.busy = true;
+  autoState.voicePick = null; autoState.voiceEndAt = null;
+  setArmed(true);
+  autoSay();
+  const beatBpm = parseFloat($('tuneBpm').value) || autoSettings().bpm;
+  for (let tries = 0; tries < 8 && autoState.on; tries++) {
+    const c = await autoPick('aca', beatBpm);
+    if (!c) { await new Promise(r => setTimeout(r, 1500)); continue; }
+    autoMark(c);
+    let d = null;
+    try { d = await (await fetch('/api/lyrics?title=' + encodeURIComponent(c.title) + '&artist=' + encodeURIComponent(c.artist))).json(); } catch (e) {}
+    const hit = d && d.results && d.results[0];
+    if (!hit) continue;
+    hit.bpm = c.bpm;
+    fold = c.fold || 1;
+    document.querySelectorAll('[data-fold]').forEach(x => x.classList.toggle('on', parseFloat(x.getAttribute('data-fold')) === fold));
+    pickWords(hit);
+    try { await acaSearch; } catch (e) {}
+    if (!aca) continue;
+    autoState.voicePick = c;
+    break;
+  }
+  autoState.busy = false;
+  if (!autoState.voicePick) { autoSay(); return; }
+  autoScheduleDrop();
+}
+function autoScheduleDrop() {
+  let t = 0; try { t = player.getCurrentTime() || 0; } catch (e) {}
+  const beatBpm = parseFloat($('tuneBpm').value) || 120;
+  const bar = 240 / beatBpm;
+  const at = gridPhase + Math.ceil((t + 4 - gridPhase) / bar) * bar;
+  setDropAt(at, 'auto');
+  const lastLine = words && words.lines.length ? words.lines[words.lines.length - 1].t : cueT + 180;
+  autoState.voiceEndAt = at + Math.max(20, (lastLine - cueT)) / appliedRate() + 4;
+  autoSay();
+}
+function autoStart() {
+  autoState.on = true;
+  $('autoGo').textContent = 'Stop';
+  $('autoGo').classList.remove('go');
+  autoNextBeat();
+}
+function autoStop() {
+  autoState.on = false;
+  autoState.busy = false;
+  $('autoGo').textContent = 'Start';
+  $('autoGo').classList.add('go');
+  pauseTune();
+  autoSay();
+}
+$('autoGo').addEventListener('click', () => { if (autoState.on) autoStop(); else autoStart(); });
+$('autoNextVoiceBtn').addEventListener('click', () => { if (!autoState.on) autoStart(); else if (!autoState.busy) autoNextVoice(); });
+$('autoNextBeatBtn').addEventListener('click', () => { if (!autoState.on) autoStart(); else if (!autoState.busy) autoNextBeat(); });
+setInterval(() => {
+  if (mode !== 'auto' || !autoState.on) return;
+  autoSay();
+  if (autoState.busy || !playerReady) return;
+  let t = 0, dur = 0;
+  try { t = player.getCurrentTime() || 0; dur = player.getDuration() || 0; } catch (e) { return; }
+  if (playerState === 0 || (dur && t > dur - 1.5)) { autoNextBeat(); return; }
+  if (playerState !== 1) return;
+  const voiceDone = autoState.voiceEndAt && t > autoState.voiceEndAt;
+  const voiceStopped = dropAt !== null && t > dropAt + 5 && acaState === 0;
+  if (voiceDone || voiceStopped || (!autoState.voicePick && Date.now() - autoState.lastTry > 15000)) { autoState.lastTry = Date.now(); autoNextVoice(); }
+}, 1000);
+
 /* main loop */
-setInterval(() => { if (mode === 'smash') smashTick(); else if (mode === 'karaoke') karaokeTick(); else liveTick(); }, 100);
+setInterval(() => { if (isSmashy()) smashTick(); else if (mode === 'karaoke') karaokeTick(); else liveTick(); }, 100);
 
 /* restore last tune */
 renderOffset(); renderRatio(); renderKn(); renderAs(); setArmed(false); loadPhase();

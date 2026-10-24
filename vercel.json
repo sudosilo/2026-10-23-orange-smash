@@ -27,6 +27,10 @@
     {
       "source": "/api/album-info",
       "destination": "https://offset-listener.vercel.app/api/album-info"
+    },
+    {
+      "source": "/api/auto-pick",
+      "destination": "https://offset-listener.vercel.app/api/auto-pick"
     }
   ],
   "headers": [
