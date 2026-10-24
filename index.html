@@ -157,16 +157,42 @@
   .albumLink { color: var(--ink); text-decoration: none; border-bottom: 1px dashed var(--chassis-edge); }
   .infoRow b { display: block; font-size: 10px; letter-spacing: 1.5px; color: var(--ink-faint); font-weight: 600; text-transform: uppercase; margin-bottom: 2px; }
 
+  .logo { border: 0; padding: 0; cursor: pointer; flex-direction: column; gap: 3px; display: flex; align-items: center; justify-content: center; }
+  .logo i { display: block; width: 16px; height: 2px; border-radius: 1px; background: #fff; }
+  header { position: relative; }
+  #menu { position: absolute; left: 14px; top: 58px; background: var(--key); border: 1px solid var(--chassis-edge); border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,.12); display: none; z-index: 30; min-width: 190px; overflow: hidden; }
+  #menu.open { display: block; }
+  #menu a { display: block; padding: 12px 14px; color: var(--ink); text-decoration: none; font-size: 14px; border-bottom: 1px solid var(--chassis); }
+  #menu a:last-child { border-bottom: 0; }
+  #menu a.here { color: var(--accent); }
+  .profIn { display: block; width: 100%; margin-top: 8px; padding: 10px; border-radius: 8px; border: 1px solid var(--chassis-edge); background: #fff; color: var(--ink); font: 15px -apple-system, Roboto, sans-serif; }
+  .tlDay { font-size: 10px; letter-spacing: 1.5px; color: var(--ink-faint); margin: 10px 0 2px; text-transform: uppercase; }
+
   .hide { display: none !important; }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 </head>
 <body>
 
 <header>
-  <div class="logo"><svg width="20" height="20" viewBox="0 0 24 24"><path d="M3 12h2v5H3zm4-4h2v13H7zm4-5h2v18h-2zm4 6h2v9h-2zm4 3h2v5h-2z" fill="#fff"/></svg></div>
+  <button class="logo" id="menuBtn" aria-label="Menu"><i></i><i></i><i></i></button>
   <div class="brand"><b>LYRIC SMASH</b><span>Smash Director</span></div>
   <div class="pill mono"><span class="dot" id="linkDot"></span><span id="linkText">STANDBY</span></div>
 </header>
+<nav id="menu">
+  <a href="#" data-go="smash">Smash</a>
+  <a href="#" data-go="karaoke">Live karaoke</a>
+  <a href="#" data-go="live">Live smash</a>
+  <a href="#" data-go="profile">Profile</a>
+  <a href="#" data-go="samplesCard">Samples</a>
+  <a href="#" data-go="infoCard">Artist info</a>
+  <a href="#" data-go="statsCard">Word count</a>
+</nav>
+
+<div class="card hide" id="profileCard">
+  <div class="cardTitle"><span>Profile</span><span class="mono" id="profTag">SUPABASE</span></div>
+  <div id="profBody"></div>
+</div>
 
 <div class="modeRow">
   <button class="seg on" data-mode="smash">SMASH</button>
@@ -308,13 +334,13 @@
   <div id="sampList"><div class="sampRow"><span class="rs">Tap sample while a smash plays, tap again to stop and export</span></div></div>
 </div>
 
-<div class="card">
+<div class="card" id="infoCard">
   <div class="cardTitle"><span>Artist info</span><span class="mono" id="infoTag">MUSICBRAINZ</span></div>
   <div class="btnRow" id="infoBtns" style="margin-top:0"></div>
   <div id="infoBody" style="margin-top:8px;font-size:13px;line-height:1.5;"><span style="color:var(--ink-faint)">Pick or hear a song, then tap a name to pull up the artist</span></div>
 </div>
 
-<div class="card">
+<div class="card" id="statsCard">
   <div class="cardTitle"><span>Word count</span><span class="mono" id="statSong"></span></div>
   <div id="stats"><div class="stat"><span style="color:var(--ink-faint)">Load words to count them</span><span></span></div></div>
   <div class="chorusText" id="chorusText"></div>
@@ -993,6 +1019,7 @@ function renderDropLog() {
   });
 }
 function logDrop(at, how) {
+  tl('drop', words ? words.title : null, words ? words.artist : null, dropKey(), { at: Math.round(at * 1000) / 1000, how, beat: tune ? tune.title : null });
   const d = new Date();
   dropLog.unshift({ at: Math.round(at * 1000) / 1000, how, when: String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + ':' + String(d.getSeconds()).padStart(2, '0') });
   if (dropLog.length > 12) dropLog.pop();
@@ -1154,6 +1181,7 @@ async function identify() {
     clearLyrics();
     renderKaraokeHeader();
     log('LOCK', data.title + ', pulling lyrics');
+    tl('heard', data.title, data.artist, null, { mode: 'karaoke' });
     try {
       const d = await (await fetch('/api/lyrics?title=' + encodeURIComponent(data.title) + '&artist=' + encodeURIComponent(data.artist))).json();
       const hit = d && d.results && d.results[0];
@@ -1265,6 +1293,7 @@ async function liveIdentify() {
     pauseAca();
     clearLyrics();
     log('LOCK', data.title + (liveSong.bpm ? ' at ' + Math.round(liveSong.bpm) + ' BPM' : ', no BPM on file'));
+    tl('heard', data.title, data.artist, null, { mode: 'live', bpm: liveSong.bpm || null });
     findLiveInstrumental();
     findDonors();
   }
@@ -1631,6 +1660,7 @@ function finishSample() {
   renderSamples();
   const blob = new Blob(sampChunks, { type: (sampRec && sampRec.mimeType) || 'audio/webm' });
   sampChunks = [];
+  cloudSaveSample(r, blob);
   if (blob.size) downloadBlob(blob, name + '.webm');
   downloadBlob(new Blob([JSON.stringify(r, null, 2)], { type: 'application/json' }), name + '.json');
   log('SAMPLE', 'exported ' + name + ', sound plus recipe');
@@ -1652,13 +1682,18 @@ function renderSamples() {
     const row = document.createElement('div');
     row.className = 'sampRow';
     const what = (r.words ? r.words.title : 'no words') + ' over ' + (r.source === 'live' && r.liveSong ? r.liveSong.title : (r.tune ? r.tune.title : 'no tune'));
-    row.innerHTML = '<div class="rt"><div>' + esc(what) + '</div><div class="rs">' + esc(r.name) + ' / ' + fmt(r.seconds) + '</div></div>';
+    row.innerHTML = '<div class="rt"><div>' + esc(what) + '</div><div class="rs">' + esc(r.name) + ' / ' + fmt(r.seconds) + (r.cloudId ? ' / SAVED TO PROFILE' : '') + '</div></div>';
+    if (r.audioPath) {
+      const hear = document.createElement('button'); hear.className = 'seg'; hear.textContent = 'HEAR';
+      hear.addEventListener('click', () => playCloudAudio(r));
+      row.appendChild(hear);
+    }
     const play = document.createElement('button'); play.className = 'seg'; play.textContent = 'REPLAY';
     play.addEventListener('click', () => replaySample(r));
     const exp = document.createElement('button'); exp.className = 'seg'; exp.textContent = 'EXPORT';
     exp.addEventListener('click', () => downloadBlob(new Blob([JSON.stringify(r, null, 2)], { type: 'application/json' }), r.name + '.json'));
     const del = document.createElement('button'); del.className = 'seg'; del.textContent = 'X';
-    del.addEventListener('click', () => { samples.splice(i, 1); store('samples', samples); renderSamples(); });
+    del.addEventListener('click', () => { const gone = samples.splice(i, 1)[0]; store('samples', samples); renderSamples(); if (gone && gone.cloudId) cloudDeleteSample(gone); });
     row.appendChild(play); row.appendChild(exp); row.appendChild(del);
     $('sampList').appendChild(row);
   });
@@ -1737,6 +1772,7 @@ function refreshInfoButtons() {
   });
 }
 async function showArtistInfo(artist, title) {
+  tl('artist', title || null, artist, null, null);
   const key = (artist + '|' + (title || '')).toLowerCase();
   let d = infoCache[key];
   if (d && d.artist && !d.artist.albums.every(x => x.id)) d = null;
@@ -1767,6 +1803,7 @@ async function showArtistInfo(artist, title) {
 }
 let albumCache = recall('albums') || {};
 async function showAlbum(id, artistName, back) {
+  tl('album', null, artistName, id, null);
   let d = albumCache[id];
   if (!d) {
     $('infoTag').textContent = 'LOOKING UP';
@@ -1819,6 +1856,130 @@ async function useAsBeat(title, artist) {
   if (first && first.tagName === 'BUTTON') first.click();
 }
 setInterval(refreshInfoButtons, 1000);
+
+/* ===== MENU ===== */
+$('menuBtn').addEventListener('click', (e) => { e.stopPropagation(); $('menu').classList.toggle('open'); });
+document.addEventListener('click', () => $('menu').classList.remove('open'));
+document.querySelectorAll('#menu a').forEach(a => a.addEventListener('click', (e) => {
+  e.preventDefault();
+  $('menu').classList.remove('open');
+  const go = a.getAttribute('data-go');
+  if (go === 'smash' || go === 'karaoke' || go === 'live') { $('profileCard').classList.add('hide'); setMode(go); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  if (go === 'profile') { $('profileCard').classList.toggle('hide'); renderProfile(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  const el = $(go);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}));
+
+/* ===== SUPABASE: profile, cloud samples, timeline ===== */
+let sb = null, sbUser = null, sbReady = false;
+async function initSupabase() {
+  let cfg = null;
+  try { cfg = await (await fetch('/api/config', { cache: 'no-store' })).json(); } catch (e) {}
+  if (!cfg || !cfg.supabaseUrl || !cfg.supabaseAnonKey || !window.supabase) { sbReady = false; renderProfile(); return; }
+  sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, { auth: { persistSession: true, autoRefreshToken: true } });
+  sbReady = true;
+  const { data } = await sb.auth.getSession();
+  sbUser = data && data.session ? data.session.user : null;
+  sb.auth.onAuthStateChange((_ev, session) => { sbUser = session ? session.user : null; renderProfile(); if (sbUser) pullCloudSamples(); });
+  renderProfile();
+  if (sbUser) pullCloudSamples();
+}
+function tl(kind, title, artist, ref, data) {
+  if (!sb || !sbUser) return;
+  sb.from('smash_timeline').insert({ kind, title: title || null, artist: artist || null, ref: ref || null, data: data || null }).then(() => {}, () => {});
+}
+async function cloudSaveSample(r, blob) {
+  if (!sb || !sbUser) return;
+  let audioPath = null;
+  if (blob && blob.size) {
+    const path = sbUser.id + '/' + r.name + '.webm';
+    const up = await sb.storage.from('smash-samples').upload(path, blob, { contentType: blob.type || 'audio/webm', upsert: true });
+    if (!up.error) audioPath = path;
+  }
+  const recipe = Object.assign({}, r);
+  const ins = await sb.from('smash_samples').insert({ name: r.name, recipe, audio_path: audioPath }).select('id').single();
+  if (!ins.error && ins.data) {
+    r.cloudId = ins.data.id; r.audioPath = audioPath;
+    store('samples', samples); renderSamples();
+    tl('sample', r.words ? r.words.title : null, r.words ? r.words.artist : null, ins.data.id, { name: r.name, beat: r.tune ? r.tune.title : null });
+    log('SAMPLE', 'saved to your profile');
+  } else log('SAMPLE', 'could not save to your profile, it is still on this phone');
+}
+async function pullCloudSamples() {
+  if (!sb || !sbUser) return;
+  const { data, error } = await sb.from('smash_samples').select('id,name,recipe,audio_path,created_at').order('created_at', { ascending: false }).limit(60);
+  if (error || !data) return;
+  const have = new Set(samples.map(x => x.name));
+  data.forEach(row => {
+    const local = samples.find(x => x.name === row.name);
+    if (local) { local.cloudId = row.id; local.audioPath = row.audio_path; return; }
+    if (have.has(row.name)) return;
+    samples.push(Object.assign({}, row.recipe || {}, { name: row.name, cloudId: row.id, audioPath: row.audio_path }));
+  });
+  samples.sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+  store('samples', samples); renderSamples();
+}
+async function cloudDeleteSample(r) {
+  if (!sb || !sbUser) return;
+  if (r.audioPath) await sb.storage.from('smash-samples').remove([r.audioPath]);
+  await sb.from('smash_samples').delete().eq('id', r.cloudId);
+}
+let cloudAudio = null;
+async function playCloudAudio(r) {
+  if (!sb || !sbUser || !r.audioPath) { log('HEAR', 'sign in to hear saved audio'); return; }
+  const { data, error } = await sb.storage.from('smash-samples').createSignedUrl(r.audioPath, 600);
+  if (error || !data) { log('HEAR', 'could not load that audio'); return; }
+  if (cloudAudio) cloudAudio.pause();
+  cloudAudio = new Audio(data.signedUrl);
+  cloudAudio.play().catch(() => log('HEAR', 'tap again to play'));
+}
+
+async function renderProfile() {
+  const body = $('profBody');
+  if (!sbReady) { body.innerHTML = '<span style="color:var(--ink-faint)">Supabase is not connected to this app yet</span>'; $('profTag').textContent = 'OFFLINE'; return; }
+  if (!sbUser) {
+    $('profTag').textContent = 'SIGNED OUT';
+    body.innerHTML = '<div style="font-size:13px;color:var(--ink-soft)">Sign in to keep samples and your smash timeline on every phone.</div>' +
+      '<input class="profIn" id="pEmail" type="email" placeholder="Email" autocomplete="email">' +
+      '<input class="profIn" id="pPass" type="password" placeholder="Password, 6 or more characters" autocomplete="current-password">' +
+      '<div class="btnRow"><button class="sbtn go" id="pIn">Sign in</button><button class="sbtn" id="pUp">Create account</button></div><div id="pMsg" class="mono" style="font-size:12px;color:var(--accent);margin-top:8px"></div>';
+    const creds = () => ({ email: $('pEmail').value.trim(), password: $('pPass').value });
+    $('pIn').onclick = async () => { const r = await sb.auth.signInWithPassword(creds()); $('pMsg').textContent = r.error ? r.error.message : ''; };
+    $('pUp').onclick = async () => {
+      const r = await sb.auth.signUp(creds());
+      if (r.error) { $('pMsg').textContent = r.error.message; return; }
+      $('pMsg').textContent = r.data && r.data.session ? '' : 'Account made, check your email to confirm, then sign in';
+    };
+    return;
+  }
+  $('profTag').textContent = 'SIGNED IN';
+  let name = '';
+  const prof = await sb.from('smash_profiles').select('display_name').eq('id', sbUser.id).maybeSingle();
+  if (prof.data) name = prof.data.display_name || '';
+  body.innerHTML = '<div class="infoHead">' + esc(name || sbUser.email) + '</div><div class="infoSub">' + esc(sbUser.email) + '</div>' +
+    '<input class="profIn" id="pName" placeholder="Display name" value="' + esc(name) + '">' +
+    '<div class="btnRow"><button class="sbtn" id="pSave">Save name</button><button class="sbtn" id="pOut">Sign out</button></div>' +
+    '<div class="infoRow" style="margin-top:10px"><b>Your timeline</b></div><div id="pTimeline" style="font-size:13px;line-height:1.5"><span style="color:var(--ink-faint)">Loading</span></div>';
+  $('pSave').onclick = async () => { await sb.from('smash_profiles').upsert({ id: sbUser.id, display_name: $('pName').value.trim() }); renderProfile(); };
+  $('pOut').onclick = async () => { await sb.auth.signOut(); };
+  const { data } = await sb.from('smash_timeline').select('kind,title,artist,ref,data,created_at').order('created_at', { ascending: false }).limit(80);
+  const verbs = { heard: 'Heard', artist: 'Looked up', album: 'Opened an album by', sample: 'Sampled', drop: 'Dropped' };
+  if (!data || !data.length) { $('pTimeline').innerHTML = '<span style="color:var(--ink-faint)">Nothing yet. Hear songs, look up artists, and sample smashes to fill it.</span>'; return; }
+  let html = '', day = '';
+  data.forEach(e => {
+    const d = new Date(e.created_at);
+    const dk = d.toDateString();
+    if (dk !== day) { day = dk; html += '<div class="tlDay">' + esc(d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })) + '</div>'; }
+    let what = (verbs[e.kind] || e.kind) + ' ';
+    if (e.kind === 'drop') what += (e.title ? e.title : 'the voice') + ' at ' + (e.data && typeof e.data.at === 'number' ? e.data.at.toFixed(3) + ' s' : '') + (e.data && e.data.beat ? ' over ' + e.data.beat : '');
+    else if (e.kind === 'sample') what += (e.title || 'a smash') + (e.data && e.data.beat ? ' over ' + e.data.beat : '');
+    else if (e.kind === 'album') what += e.artist || '';
+    else what += [e.title, e.artist].filter(Boolean).join(' / ');
+    html += '<div><span class="mono" style="color:var(--ink-faint)">' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + '</span> ' + esc(what) + '</div>';
+  });
+  $('pTimeline').innerHTML = html;
+}
+initSupabase();
 
 /* main loop */
 setInterval(() => { if (mode === 'smash') smashTick(); else if (mode === 'karaoke') karaokeTick(); else liveTick(); }, 100);
