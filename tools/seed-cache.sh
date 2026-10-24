@@ -16,6 +16,7 @@ mkdir -p "$WORK"
 SONGS="$WORK/songs.tsv"
 DONE="$WORK/done.txt"
 touch "$DONE"
+rm -f "$WORK/stopped"
 
 for tool in curl jq yt-dlp; do
   command -v "$tool" >/dev/null 2>&1 || { echo "missing $tool, install it first"; exit 1; }
@@ -65,6 +66,7 @@ while IFS=$'\t' read -r title artist; do
       echo "$q" >> "$WORK/skipped.txt"
       if [ "$fails" -ge 3 ]; then
         echo "YouTube is refusing searches right now. Stopping here, run the same command later and it picks up from this song."
+        echo blocked > "$WORK/stopped"
         exit 0
       fi
       continue
@@ -81,4 +83,5 @@ while IFS=$'\t' read -r title artist; do
   done
 done < "$SONGS"
 
+rm -f "$WORK/stopped"
 echo "finished, $stored searches saved to the cache"
