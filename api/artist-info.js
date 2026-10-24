@@ -13,13 +13,19 @@ export default async function handler(request) {
   let artistId = null, song = null;
 
   if (title) {
-    const rec = await mb('/recording/?fmt=json&limit=5&query=' + encodeURIComponent('recording:"' + q(title) + '" AND artist:"' + q(artist) + '"'));
-    const hit = rec && rec.recordings && rec.recordings[0];
+    const rec = await mb('/recording/?fmt=json&limit=40&query=' + encodeURIComponent('recording:"' + q(title) + '" AND artist:"' + q(artist) + '"'));
+    const all = (rec && rec.recordings) || [];
+    const wantT = norm(title), wantA = norm(artist);
+    const exact = all.filter(r => norm(r.title) === wantT && norm(((r['artist-credit'] || [])[0] || {}).name).includes(wantA));
+    const pool = (exact.length ? exact : all).filter(r => r['first-release-date']);
+    pool.sort((x, y) => x['first-release-date'].localeCompare(y['first-release-date']));
+    const hit = pool[0] || all[0];
     if (hit) {
       const credit = hit['artist-credit'] && hit['artist-credit'][0];
       if (credit && credit.artist) artistId = credit.artist.id;
       const releases = (hit.releases || []).slice().sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999'));
-      const firstAlbum = releases.find(r => r['release-group'] && r['release-group']['primary-type'] === 'Album') || releases[0];
+      const isStudio = r => r['release-group'] && r['release-group']['primary-type'] === 'Album' && !(r['release-group']['secondary-types'] || []).length;
+      const firstAlbum = releases.find(r => isStudio(r) && r.status === 'Official') || releases.find(isStudio) || releases.find(r => r['release-group'] && r['release-group']['primary-type'] === 'Single') || releases[0];
       song = {
         title: hit.title,
         firstReleased: hit['first-release-date'] || null,
@@ -93,6 +99,7 @@ function span(begin, end, ended) {
   if (!b && !e) return null;
   return (b || '?') + ' to ' + (e || (ended ? '?' : 'now'));
 }
+function norm(s) { return (s || '').toLowerCase().replace(/\(.*?\)|\[.*?\]/g, '').replace(/[^a-z0-9]/g, ''); }
 function q(s) { return s.replace(/["\\]/g, ' '); }
 function clean(s) { return (s || '').replace(/\(.*?\)|\[.*?\]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120); }
 function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
