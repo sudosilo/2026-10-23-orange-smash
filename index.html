@@ -1756,11 +1756,9 @@ function renderSamples() {
     exp.addEventListener('click', () => downloadBlob(new Blob([JSON.stringify(r, null, 2)], { type: 'application/json' }), r.name + '.json'));
     const del = document.createElement('button'); del.className = 'seg'; del.textContent = 'X';
     del.addEventListener('click', () => { const gone = samples.splice(i, 1)[0]; store('samples', samples); renderSamples(); if (gone && gone.cloudId) cloudDeleteSample(gone); });
-    if (r.cloudId) {
-      const sh = document.createElement('button'); sh.className = 'seg' + (r.isPublic ? ' on' : ''); sh.textContent = r.isPublic ? 'SHARED' : 'SHARE';
-      sh.addEventListener('click', () => toggleShare(r));
-      row.appendChild(sh);
-    }
+    const sh = document.createElement('button'); sh.className = 'seg' + (r.isPublic ? ' on' : ''); sh.textContent = r.isPublic ? 'SHARED' : 'SHARE';
+    sh.addEventListener('click', () => toggleShare(r));
+    row.appendChild(sh);
     row.appendChild(play); row.appendChild(exp); row.appendChild(del);
     $('sampList').appendChild(row);
   });
@@ -2063,7 +2061,12 @@ async function ensureProfile() {
   await sb.from('smash_profiles').upsert({ id: sbUser.id, display_name: (sbUser.email || 'smasher').split('@')[0] }, { onConflict: 'id', ignoreDuplicates: true });
 }
 async function toggleShare(r) {
-  if (!sb || !sbUser || !r.cloudId) { log('SHARE', 'sign in from the menu to share'); return; }
+  if (!sb || !sbUser) { log('SHARE', 'sign in from the menu to share'); return; }
+  if (!r.cloudId) {
+    log('SHARE', 'saving it to your profile first');
+    await cloudSaveSample(r, null);
+    if (!r.cloudId) { log('SHARE', 'could not save it to your profile'); return; }
+  }
   await ensureProfile();
   const next = !r.isPublic;
   const { error } = await sb.from('smash_samples').update({ is_public: next }).eq('id', r.cloudId);
