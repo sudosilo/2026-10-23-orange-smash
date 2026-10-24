@@ -420,6 +420,9 @@
 
 <script>
 const $ = (id) => document.getElementById(id);
+let sb = null, sbUser = null, sbReady = false;
+let feedUser = null, feedUserName = '', openThread = null, threadChan = null;
+let cloudAudio = null, cloudAudioName = null, replayingName = null;
 const CLIP_MS = 9000;
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
@@ -2005,7 +2008,6 @@ document.querySelectorAll('#menu a').forEach(a => a.addEventListener('click', (e
 }));
 
 /* ===== SUPABASE: profile, cloud samples, timeline ===== */
-let sb = null, sbUser = null, sbReady = false;
 async function initSupabase() {
   let cfg = null;
   try { cfg = await (await fetch('/api/config', { cache: 'no-store' })).json(); } catch (e) {}
@@ -2059,7 +2061,6 @@ async function cloudDeleteSample(r) {
   if (r.audioPath) await sb.storage.from('smash-samples').remove([r.audioPath]);
   await sb.from('smash_samples').delete().eq('id', r.cloudId);
 }
-let cloudAudio = null, cloudAudioName = null, replayingName = null;
 async function playCloudAudio(r) {
   if (!sb || !r.audioPath) { log('HEAR', 'no saved audio for this one'); return; }
   const { data, error } = await sb.storage.from('smash-samples').createSignedUrl(r.audioPath, 600);
@@ -2120,7 +2121,6 @@ initSupabase();
 
 /* ===== SHARING: public smashes, reactions, comments ===== */
 const REACTS = ['\u{1F525}', '\u{2764}\u{FE0F}', '\u{1F602}', '\u{1F92F}'];
-let feedUser = null, feedUserName = '', openThread = null, threadChan = null;
 function ago(iso) {
   const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
   if (m < 1) return 'just now';
