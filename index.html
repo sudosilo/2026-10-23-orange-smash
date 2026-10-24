@@ -174,6 +174,15 @@
   .card.shut > :not(.cardTitle) { display: none !important; }
   .card.shut .cardTitle { margin-bottom: 0; }
 
+  .card { border-left-width: 5px; }
+  .c-inst { border-left-color: #3f7fbf; } .c-inst .cardTitle { color: #3f7fbf; }
+  .c-aca { border-left-color: #c4561f; } .c-aca .cardTitle { color: #c4561f; }
+  .c-tempo { border-left-color: #7a5bb5; } .c-tempo .cardTitle { color: #7a5bb5; }
+  .c-live { border-left-color: #2f8a4a; } .c-live .cardTitle { color: #2f8a4a; }
+  .c-info { border-left-color: #b7791f; } .c-info .cardTitle { color: #a06a18; }
+  .c-samp { border-left-color: #b8325a; } .c-samp .cardTitle { color: #b8325a; }
+  .c-ink { border-left-color: var(--ink); } .c-ink .cardTitle { color: var(--ink); }
+
   .hide { display: none !important; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
@@ -192,7 +201,7 @@
   <a href="#" data-go="statsCard">Word count</a>
 </nav>
 
-<div class="card hide" id="profileCard">
+<div class="card hide c-ink" id="profileCard">
   <div class="cardTitle"><span>Profile</span><span class="mono" id="profTag">SUPABASE</span></div>
   <div id="profBody"></div>
 </div>
@@ -250,7 +259,7 @@
 <div id="ack" class="mono"></div>
 
 <div id="smashPanel">
-  <div class="card">
+  <div class="card c-inst">
     <div class="cardTitle"><span>Instrumental</span><span class="mono" id="tuneCount"></span></div>
     <div class="searchRow"><input id="tuneInput" placeholder="Song or artist"><button class="sbtn" id="tuneFind">Find</button></div>
     <div class="toggleRow"><span>Instrumentals only</span><input type="checkbox" id="instOnly" checked></div>
@@ -258,15 +267,15 @@
     <div class="picked" id="tunePicked"></div>
   </div>
 
-  <div class="card">
+  <div class="card c-aca">
     <div class="cardTitle"><span>Acapella</span><span class="mono" id="wordsCount"></span></div>
     <div class="searchRow"><input id="wordsInput" placeholder="Song or artist"><button class="sbtn" id="wordsFind">Find</button></div>
     <div id="wordsResults" style="margin-top:6px;"></div>
     <div class="picked" id="wordsPicked"></div>
   </div>
 
-  <div class="card">
-    <div class="cardTitle"><span>Stretch</span><span class="mono" id="ratioTag">1.000X</span></div>
+  <div class="card c-tempo">
+    <div class="cardTitle"><span>Stretch</span><span class="mono hide" id="ratioTag"></span></div>
     <div class="toggleRow"><span>Instrumental BPM</span><input class="numIn" id="tuneBpm" type="number" step="0.1" inputmode="decimal"></div>
     <div class="toggleRow"><span>Acapella BPM</span><input class="numIn" id="wordsBpm" type="number" step="0.1" inputmode="decimal"></div>
     <div class="toggleRow"><span>How far off</span><span class="mono gapVal" id="gapVal">--</span></div>
@@ -275,15 +284,15 @@
     <div class="toggleRow"><span>Acapella start</span><span class="ctl"><span class="mono readout" id="offsetVal">+0.00 s</span><button class="seg" id="offsetReset">RST</button></span></div>
   </div>
 
-  <div class="card">
-    <div class="cardTitle"><span>Snap</span><span class="mono" id="snapTag">OFF GRID</span></div>
+  <div class="card c-tempo">
+    <div class="cardTitle"><span>Snap</span><span class="mono hide" id="snapTag"></span></div>
     <div class="toggleRow"><span>Snap to the beat</span><input type="checkbox" id="snapOn" checked></div>
     <div class="toggleRow"><span>Snap size</span><span class="ctl"><button class="seg" data-snap="0.5">HALF</button><button class="seg on" data-snap="1">BEAT</button><button class="seg" data-snap="4">BAR</button></span></div>
     <div class="toggleRow"><span>Beat one</span><span class="ctl"><button class="seg" data-ph="-0.02">-</button><span class="mono readout" id="phaseVal">0.00 s</span><button class="seg" data-ph="0.02">+</button><button class="seg" id="beatOneBtn">SET</button></span></div>
   </div>
 
-  <div class="card">
-    <div class="cardTitle"><span>Acapella settings</span><span class="mono" id="acaTag">PICK AN ACAPELLA FIRST</span></div>
+  <div class="card c-aca">
+    <div class="cardTitle"><span>Acapella settings</span><span class="mono hide" id="acaTag"></span></div>
     <div class="toggleRow"><span>Play the acapella</span><input type="checkbox" id="acaOn" checked></div>
     <div class="toggleRow"><span>Start from</span><select class="cueSel" id="cueSel"><option value="0">0:00 top of the song</option></select></div>
     <div class="toggleRow"><span>Acapella shift</span><span class="ctl"><button class="seg" data-as="-0.1">-</button><span class="mono readout" id="asVal">+0.0 s</span><button class="seg" data-as="0.1">+</button><button class="seg" data-as="0">RST</button></span></div>
@@ -298,7 +307,7 @@
 </div>
 
 <div id="livePanel" class="hide">
-  <div class="card">
+  <div class="card c-live">
     <div class="cardTitle"><span>Live smash</span><span></span></div>
     <div class="toggleRow"><span>Auto follow songs</span><input type="checkbox" id="liveFollow" checked></div>
     <div class="toggleRow"><span>Play the instrumental</span><input type="checkbox" id="liveInstOn" checked></div>
@@ -307,47 +316,47 @@
     <div class="toggleRow"><span>Beat timing</span><span class="ctl"><button class="seg" data-ln="-50">-</button><span class="mono readout" id="lnVal">+0 ms</span><button class="seg" data-ln="50">+</button><button class="seg" data-ln="0">RST</button></span></div>
     <div class="toggleRow"><span>Acapella shift</span><span class="ctl"><button class="seg" data-las="-0.1">-</button><span class="mono readout" id="lasVal">+0.0 s</span><button class="seg" data-las="0.1">+</button><button class="seg" data-las="0">RST</button></span></div>
   </div>
-  <div class="card">
-    <div class="cardTitle"><span>Instrumental</span><span class="mono" id="liveInstTag">WAITING</span></div>
+  <div class="card c-inst">
+    <div class="cardTitle"><span>Instrumental</span><span class="mono hide" id="liveInstTag"></span></div>
     <div id="liveInstInfo" style="font-size:13px;color:var(--ink-faint)">Listen to a song and its instrumental loads here</div>
     <div id="liveInstResults" style="margin-top:6px;"></div>
   </div>
-  <div class="card">
-    <div class="cardTitle"><span>Donor suggestions</span><span class="mono" id="liveSugTag">SAME BPM</span></div>
+  <div class="card c-aca">
+    <div class="cardTitle"><span>Donor suggestions</span><span class="mono hide" id="liveSugTag"></span></div>
     <div class="searchRow"><input id="liveSearch" placeholder="Song, artist, or a BPM like 120"><button class="sbtn" id="liveFind">Find</button></div>
     <div class="toggleRow"><span>Songs at the live BPM</span><button class="seg" id="liveBpmFind">SEARCH LIVE BPM</button></div>
     <input type="hidden" id="liveBpmNow">
     <div id="liveSug"></div>
   </div>
-  <div class="card">
-    <div class="cardTitle"><span>Donor acapella</span><span class="mono" id="liveAcaTag">WAITING</span></div>
+  <div class="card c-aca">
+    <div class="cardTitle"><span>Donor acapella</span><span class="mono hide" id="liveAcaTag"></span></div>
     <div id="liveAcaInfo" style="font-size:13px;color:var(--ink-faint)">Pick a suggestion and its vocal only version loads here</div>
     <div id="liveAcaResults" style="margin-top:6px;"></div>
   </div>
 </div>
 
 <div id="karaokePanel" class="hide">
-  <div class="card">
+  <div class="card c-live">
     <div class="cardTitle"><span>Live karaoke</span><span></span></div>
     <div class="toggleRow"><span>Auto follow songs</span><input type="checkbox" id="followToggle" checked></div>
     <div class="toggleRow"><span>Lyric timing</span><span class="ctl"><button class="seg" data-kn="-250">-</button><span class="mono readout" id="knVal">+0 ms</span><button class="seg" data-kn="250">+</button><button class="seg" data-kn="0">RST</button></span></div>
   </div>
 </div>
 
-<div class="card" id="infoCard">
-  <div class="cardTitle"><span>Artist info</span><span class="mono" id="infoTag">MUSICBRAINZ</span></div>
+<div class="card c-info" id="infoCard">
+  <div class="cardTitle"><span>Artist info</span><span class="mono hide" id="infoTag"></span></div>
   <div class="btnRow" id="infoBtns" style="margin-top:0"></div>
   <div id="infoBody" style="margin-top:8px;font-size:13px;line-height:1.5;"><span style="color:var(--ink-faint)">Pick or hear a song, then tap a name to pull up the artist</span></div>
 </div>
 
-<div class="card" id="statsCard">
+<div class="card c-info" id="statsCard">
   <div class="cardTitle"><span>Word count</span><span class="mono" id="statSong"></span></div>
   <div id="stats"><div class="stat"><span style="color:var(--ink-faint)">Load words to count them</span><span></span></div></div>
   <div class="chorusText" id="chorusText"></div>
 </div>
 </div>
 
-<div class="card hide" id="samplesCard">
+<div class="card hide c-samp" id="samplesCard">
   <div class="cardTitle"><span>Samples</span><span class="mono" id="sampCount"></span></div>
   <div id="sampList"><div class="sampRow"><span class="rs">Tap sample while a smash plays, tap again to stop and export</span></div></div>
 </div>
