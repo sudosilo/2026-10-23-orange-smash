@@ -375,8 +375,14 @@
 </div>
 
 <div class="card hide c-samp" id="samplesCard">
-  <div class="cardTitle"><span>Samples</span><span class="mono" id="sampCount"></span></div>
+  <div class="cardTitle"><span>My samples</span><span class="mono" id="sampCount"></span></div>
   <div id="sampList"><div class="sampRow"><span class="rs">Tap sample while a smash plays, tap again to stop and export</span></div></div>
+</div>
+
+<div class="card hide c-samp" id="feedCard">
+  <div class="cardTitle"><span>Shared smashes</span><span class="mono" id="feedWho"></span></div>
+  <div class="btnRow" style="margin-top:0"><button class="seg on" id="feedAll">EVERYONE</button><button class="seg hide" id="feedPerson"></button><button class="seg" id="feedRefresh">REFRESH</button></div>
+  <div id="feedList" style="margin-top:6px"></div>
 </div>
 
 
@@ -531,7 +537,8 @@ function setView(v) {
   view = v;
   $('mainView').classList.toggle('hide', v === 'samples');
   $('samplesCard').classList.toggle('hide', v !== 'samples');
-  if (v === 'samples') $('samplesCard').classList.remove('shut');
+  $('feedCard').classList.toggle('hide', v !== 'samples');
+  if (v === 'samples') { $('samplesCard').classList.remove('shut'); $('feedCard').classList.remove('shut'); loadFeed(feedUser); }
   document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('on', b.getAttribute('data-view') === v));
   document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('on', !v && b.getAttribute('data-mode') === mode));
 }
@@ -1742,6 +1749,11 @@ function renderSamples() {
     exp.addEventListener('click', () => downloadBlob(new Blob([JSON.stringify(r, null, 2)], { type: 'application/json' }), r.name + '.json'));
     const del = document.createElement('button'); del.className = 'seg'; del.textContent = 'X';
     del.addEventListener('click', () => { const gone = samples.splice(i, 1)[0]; store('samples', samples); renderSamples(); if (gone && gone.cloudId) cloudDeleteSample(gone); });
+    if (r.cloudId) {
+      const sh = document.createElement('button'); sh.className = 'seg' + (r.isPublic ? ' on' : ''); sh.textContent = r.isPublic ? 'SHARED' : 'SHARE';
+      sh.addEventListener('click', () => toggleShare(r));
+      row.appendChild(sh);
+    }
     row.appendChild(play); row.appendChild(exp); row.appendChild(del);
     $('sampList').appendChild(row);
   });
@@ -1955,14 +1967,14 @@ async function cloudSaveSample(r, blob) {
 }
 async function pullCloudSamples() {
   if (!sb || !sbUser) return;
-  const { data, error } = await sb.from('smash_samples').select('id,name,recipe,audio_path,created_at').order('created_at', { ascending: false }).limit(60);
+  const { data, error } = await sb.from('smash_samples').select('id,name,recipe,audio_path,is_public,created_at').eq('user_id', sbUser.id).order('created_at', { ascending: false }).limit(60);
   if (error || !data) return;
   const have = new Set(samples.map(x => x.name));
   data.forEach(row => {
     const local = samples.find(x => x.name === row.name);
-    if (local) { local.cloudId = row.id; local.audioPath = row.audio_path; return; }
+    if (local) { local.cloudId = row.id; local.audioPath = row.audio_path; local.isPublic = !!row.is_public; return; }
     if (have.has(row.name)) return;
-    samples.push(Object.assign({}, row.recipe || {}, { name: row.name, cloudId: row.id, audioPath: row.audio_path }));
+    samples.push(Object.assign({}, row.recipe || {}, { name: row.name, cloudId: row.id, audioPath: row.audio_path, isPublic: !!row.is_public }));
   });
   samples.sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
   store('samples', samples); renderSamples();
@@ -1974,7 +1986,7 @@ async function cloudDeleteSample(r) {
 }
 let cloudAudio = null;
 async function playCloudAudio(r) {
-  if (!sb || !sbUser || !r.audioPath) { log('HEAR', 'sign in to hear saved audio'); return; }
+  if (!sb || !r.audioPath) { log('HEAR', 'no saved audio for this one'); return; }
   const { data, error } = await sb.storage.from('smash-samples').createSignedUrl(r.audioPath, 600);
   if (error || !data) { log('HEAR', 'could not load that audio'); return; }
   if (cloudAudio) cloudAudio.pause();
@@ -2011,7 +2023,7 @@ async function renderProfile() {
   $('pSave').onclick = async () => { await sb.from('smash_profiles').upsert({ id: sbUser.id, display_name: $('pName').value.trim() }); renderProfile(); };
   $('pOut').onclick = async () => { await sb.auth.signOut(); };
   const { data } = await sb.from('smash_timeline').select('kind,title,artist,ref,data,created_at').order('created_at', { ascending: false }).limit(80);
-  const verbs = { heard: 'Heard', artist: 'Looked up', album: 'Opened an album by', sample: 'Sampled', drop: 'Dropped' };
+  const verbs = { heard: 'Heard', artist: 'Looked up', album: 'Opened an album by', sample: 'Sampled', drop: 'Dropped', share: 'Shared' };
   if (!data || !data.length) { $('pTimeline').innerHTML = '<span style="color:var(--ink-faint)">Nothing yet. Hear songs, look up artists, and sample smashes to fill it.</span>'; return; }
   let html = '', day = '';
   data.forEach(e => {
@@ -2020,7 +2032,7 @@ async function renderProfile() {
     if (dk !== day) { day = dk; html += '<div class="tlDay">' + esc(d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })) + '</div>'; }
     let what = (verbs[e.kind] || e.kind) + ' ';
     if (e.kind === 'drop') what += (e.title ? e.title : 'the voice') + ' at ' + (e.data && typeof e.data.at === 'number' ? e.data.at.toFixed(3) + ' s' : '') + (e.data && e.data.beat ? ' over ' + e.data.beat : '');
-    else if (e.kind === 'sample') what += (e.title || 'a smash') + (e.data && e.data.beat ? ' over ' + e.data.beat : '');
+    else if (e.kind === 'sample' || e.kind === 'share') what += (e.title || 'a smash') + (e.data && e.data.beat ? ' over ' + e.data.beat : '');
     else if (e.kind === 'album') what += e.artist || '';
     else what += [e.title, e.artist].filter(Boolean).join(' / ');
     html += '<div><span class="mono" style="color:var(--ink-faint)">' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + '</span> ' + esc(what) + '</div>';
@@ -2028,6 +2040,125 @@ async function renderProfile() {
   $('pTimeline').innerHTML = html;
 }
 initSupabase();
+
+/* ===== SHARING: public smashes, reactions, comments ===== */
+const REACTS = ['\u{1F525}', '\u{2764}\u{FE0F}', '\u{1F602}', '\u{1F92F}'];
+let feedUser = null, feedUserName = '', openThread = null, threadChan = null;
+function ago(iso) {
+  const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return m + ' min ago';
+  if (m < 1440) return Math.round(m / 60) + ' hr ago';
+  return Math.round(m / 1440) + ' days ago';
+}
+async function ensureProfile() {
+  if (!sb || !sbUser) return;
+  await sb.from('smash_profiles').upsert({ id: sbUser.id, display_name: (sbUser.email || 'smasher').split('@')[0] }, { onConflict: 'id', ignoreDuplicates: true });
+}
+async function toggleShare(r) {
+  if (!sb || !sbUser || !r.cloudId) { log('SHARE', 'sign in from the menu to share'); return; }
+  await ensureProfile();
+  const next = !r.isPublic;
+  const { error } = await sb.from('smash_samples').update({ is_public: next }).eq('id', r.cloudId);
+  if (error) { log('SHARE', 'could not change sharing'); return; }
+  r.isPublic = next; store('samples', samples); renderSamples();
+  if (next) tl('share', r.words ? r.words.title : null, r.words ? r.words.artist : null, r.cloudId, { name: r.name });
+  log('SHARE', next ? 'shared, everyone can hear and replay it' : 'back to private');
+  loadFeed(feedUser);
+}
+function whatOf(rc) {
+  if (!rc) return 'a smash';
+  const beat = rc.source === 'live' && rc.liveSong ? rc.liveSong.title : (rc.tune ? rc.tune.title : null);
+  return (rc.words ? rc.words.title : 'no acapella') + (beat ? ' over ' + beat : '');
+}
+async function loadFeed(userId) {
+  feedUser = userId || null;
+  $('feedAll').classList.toggle('on', !feedUser);
+  $('feedPerson').classList.toggle('hide', !feedUser);
+  $('feedPerson').classList.toggle('on', !!feedUser);
+  $('feedPerson').textContent = feedUser ? (feedUserName || 'PERSON').toUpperCase().slice(0, 20) : '';
+  if (!sb) { $('feedList').innerHTML = '<span class="rs" style="color:var(--ink-faint)">Sharing needs the profile connection</span>'; return; }
+  let q = sb.from('smash_samples').select('id,user_id,name,recipe,audio_path,created_at').eq('is_public', true).order('created_at', { ascending: false }).limit(40);
+  if (feedUser) q = q.eq('user_id', feedUser);
+  const { data, error } = await q;
+  if (error) { $('feedList').innerHTML = '<span class="rs">Could not load the feed</span>'; return; }
+  if (!data || !data.length) { $('feedList').innerHTML = '<span class="rs" style="color:var(--ink-faint)">Nothing shared yet. Tap SHARE on one of your samples.</span>'; return; }
+  const ids = data.map(x => x.id), users = [...new Set(data.map(x => x.user_id))];
+  const [profs, reacts, comms] = await Promise.all([
+    sb.from('smash_profiles').select('id,display_name').in('id', users),
+    sb.from('smash_reactions').select('sample_id,user_id,emoji').in('sample_id', ids),
+    sb.from('smash_comments').select('sample_id').in('sample_id', ids)
+  ]);
+  const names = {}; (profs.data || []).forEach(p => { names[p.id] = p.display_name || 'smasher'; });
+  $('feedList').innerHTML = '';
+  data.forEach(sm => {
+    const row = document.createElement('div');
+    row.className = 'sampRow';
+    row.style.flexWrap = 'wrap';
+    const who = names[sm.user_id] || 'smasher';
+    row.innerHTML = '<div class="rt" style="flex-basis:100%"><div>' + esc(whatOf(sm.recipe)) + '</div><div class="rs"><a href="#" class="byLink">' + esc(who) + '</a> / ' + esc(ago(sm.created_at)) + (sm.recipe && sm.recipe.seconds ? ' / ' + fmt(sm.recipe.seconds) : '') + '</div></div>';
+    row.querySelector('.byLink').addEventListener('click', (e) => { e.preventDefault(); feedUserName = who; loadFeed(sm.user_id); });
+    const bar = document.createElement('div');
+    bar.className = 'btnRow'; bar.style.marginTop = '4px';
+    if (sm.audio_path) { const h = document.createElement('button'); h.className = 'seg'; h.textContent = 'HEAR'; h.onclick = () => playCloudAudio({ audioPath: sm.audio_path }); bar.appendChild(h); }
+    const rp = document.createElement('button'); rp.className = 'seg'; rp.textContent = 'REPLAY';
+    rp.onclick = () => { setView(null); replaySample(Object.assign({}, sm.recipe || {}, { name: sm.name })); };
+    bar.appendChild(rp);
+    REACTS.forEach(em => {
+      const mine = (reacts.data || []).some(r => r.sample_id === sm.id && r.emoji === em && sbUser && r.user_id === sbUser.id);
+      const n = (reacts.data || []).filter(r => r.sample_id === sm.id && r.emoji === em).length;
+      const b = document.createElement('button'); b.className = 'seg' + (mine ? ' on' : ''); b.textContent = em + (n ? ' ' + n : '');
+      b.onclick = () => react(sm.id, em, mine);
+      bar.appendChild(b);
+    });
+    const cn = (comms.data || []).filter(c => c.sample_id === sm.id).length;
+    const cb = document.createElement('button'); cb.className = 'seg'; cb.textContent = 'COMMENTS' + (cn ? ' ' + cn : '');
+    bar.appendChild(cb);
+    row.appendChild(bar);
+    const thread = document.createElement('div');
+    thread.style.flexBasis = '100%';
+    row.appendChild(thread);
+    cb.onclick = () => toggleThread(sm.id, thread);
+    $('feedList').appendChild(row);
+    if (openThread === sm.id) toggleThread(sm.id, thread, true);
+  });
+}
+async function react(sampleId, emoji, mine) {
+  if (!sb || !sbUser) { log('REACT', 'sign in from the menu to react'); return; }
+  if (mine) await sb.from('smash_reactions').delete().eq('sample_id', sampleId).eq('user_id', sbUser.id).eq('emoji', emoji);
+  else await sb.from('smash_reactions').insert({ sample_id: sampleId, emoji });
+  loadFeed(feedUser);
+}
+async function toggleThread(sampleId, box, keepOpen) {
+  if (openThread === sampleId && !keepOpen && box.innerHTML) { box.innerHTML = ''; openThread = null; if (threadChan) { sb.removeChannel(threadChan); threadChan = null; } return; }
+  openThread = sampleId;
+  const paint = async () => {
+    const { data } = await sb.from('smash_comments').select('id,user_id,body,created_at').eq('sample_id', sampleId).order('created_at', { ascending: true }).limit(100);
+    const us = [...new Set((data || []).map(c => c.user_id))];
+    const pr = us.length ? await sb.from('smash_profiles').select('id,display_name').in('id', us) : { data: [] };
+    const nm = {}; (pr.data || []).forEach(p => { nm[p.id] = p.display_name || 'smasher'; });
+    let h = '<div style="margin:6px 0 2px;padding-left:8px;border-left:2px solid var(--chassis-edge)">';
+    (data || []).forEach(c => { h += '<div style="font-size:13px;padding:3px 0"><b style="font-size:12px">' + esc(nm[c.user_id] || 'smasher') + '</b> ' + esc(c.body) + ' <span class="rs">' + esc(ago(c.created_at)) + '</span></div>'; });
+    if (!(data || []).length) h += '<div class="rs" style="padding:3px 0">No comments yet</div>';
+    h += '</div>';
+    if (sbUser) h += '<div class="searchRow" style="margin-top:6px"><input class="cIn" maxlength="500" placeholder="Say something about this smash"><button class="sbtn cGo">Send</button></div>';
+    else h += '<div class="rs" style="margin-top:4px">Sign in from the menu to comment</div>';
+    box.innerHTML = h;
+    const go = box.querySelector('.cGo'), inp = box.querySelector('.cIn');
+    if (go) {
+      const send = async () => { const t = inp.value.trim(); if (!t) return; inp.value = ''; await sb.from('smash_comments').insert({ sample_id: sampleId, body: t }); };
+      go.onclick = send;
+      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
+    }
+  };
+  await paint();
+  if (threadChan) { sb.removeChannel(threadChan); threadChan = null; }
+  threadChan = sb.channel('comments-' + sampleId)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'smash_comments', filter: 'sample_id=eq.' + sampleId }, () => paint())
+    .subscribe();
+}
+$('feedAll').addEventListener('click', () => loadFeed(null));
+$('feedRefresh').addEventListener('click', () => loadFeed(feedUser));
 
 function showHelp(on) {
   $('helpCard').classList.toggle('hide', !on);
