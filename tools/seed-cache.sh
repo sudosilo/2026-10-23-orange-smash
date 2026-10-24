@@ -5,11 +5,14 @@
 #       bash tools/seed-cache.sh 200        (stop after 200 songs)
 #       bash tools/seed-cache.sh 0 list.txt (your own list, one "Title|Artist" per line)
 #       bash tools/seed-cache.sh bottom     (second phone: same list, starting from the last song)
+#       bash tools/seed-cache.sh middle     (third phone: starts in the middle and works up)
 
 API="https://offset-listener.vercel.app/api/seed-search"
 WORK="$HOME/.smash-seed"
 REVERSE=0
+MIDDLE=0
 if [ "$1" = "bottom" ]; then REVERSE=1; shift; fi
+if [ "$1" = "middle" ]; then MIDDLE=1; shift; fi
 LIMIT="${1:-0}"
 LIST_FILE="$2"
 mkdir -p "$WORK"
@@ -35,6 +38,11 @@ else
 fi
 sort -u -o "$SONGS" "$SONGS"
 if [ "$REVERSE" = "1" ]; then tac "$SONGS" > "$SONGS.rev" && mv "$SONGS.rev" "$SONGS"; echo "starting from the bottom of the list"; fi
+if [ "$MIDDLE" = "1" ]; then
+  half=$(( $(wc -l < "$SONGS") / 2 ))
+  { head -n "$half" "$SONGS" | tac; tail -n +"$((half + 1))" "$SONGS"; } > "$SONGS.mid" && mv "$SONGS.mid" "$SONGS"
+  echo "starting from the middle of the list, working up"
+fi
 TOTAL=$(wc -l < "$SONGS")
 echo "songs to cover: $TOTAL"
 

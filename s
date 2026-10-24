@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # One line setup for an extra phone. Waits for the internet instead of quitting, then runs the seed from the bottom.
 main() {
+  MODE="${1:-bottom}"
   cd ~ && pwd
   until curl -sf -o /dev/null https://api.github.com; do echo "no internet yet, trying again in 30 s"; sleep 30; done
   # use the main Termux package server instead of whatever mirror this phone picked
@@ -16,8 +17,8 @@ main() {
   cd 2026-10-23-orange-smash && git pull
   pwd
   termux-wake-lock 2>/dev/null
-  until bash tools/seed-cache.sh bottom </dev/null && ! grep -q . "$HOME/.smash-seed/stopped" 2>/dev/null; do
+  until bash tools/seed-cache.sh "$MODE" </dev/null && ! grep -q . "$HOME/.smash-seed/stopped" 2>/dev/null; do
     echo "seed paused, starting again in 10 minutes"; sleep 600
   done
 }
-main
+main "$@"
