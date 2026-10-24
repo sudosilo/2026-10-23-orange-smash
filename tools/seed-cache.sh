@@ -35,6 +35,7 @@ echo "songs to cover: $TOTAL"
 
 count=0
 stored=0
+fails=0
 while IFS=$'\t' read -r title artist; do
   [ -z "$title" ] && continue
   count=$((count + 1))
@@ -42,13 +43,27 @@ while IFS=$'\t' read -r title artist; do
   for kind in acapella instrumental; do
     q="$title $artist $kind"
     grep -Fxq "$q" "$DONE" && continue
-    lines=$(yt-dlp --flat-playlist --skip-download --no-warnings \
-      --print $'%(id)s\t%(title)s\t%(channel,uploader|)s' "ytsearch8:$q" 2>/dev/null </dev/null)
+    lines=""
+    reason=""
+    for wait in 30 90 240; do
+      out=$(yt-dlp --flat-playlist --skip-download --no-warnings \
+        --print $'%(id)s\t%(title)s\t%(channel,uploader|)s' "ytsearch8:$q" 2>"$WORK/err.txt" </dev/null)
+      lines=$(printf '%s\n' "$out" | grep -E '^[A-Za-z0-9_-]{11}'$'\t' || true)
+      [ -n "$lines" ] && break
+      reason=$(grep -v '^$' "$WORK/err.txt" | tail -n 1 | cut -c1-140)
+      echo "[$count/$TOTAL] $kind: no results (${reason:-empty search}), trying again in $wait s"
+      sleep "$wait"
+    done
     if [ -z "$lines" ]; then
-      echo "[$count/$TOTAL] $kind: no results, YouTube may be slowing us down, waiting 30 s"
-      sleep 30
+      fails=$((fails + 1))
+      echo "$q" >> "$WORK/skipped.txt"
+      if [ "$fails" -ge 3 ]; then
+        echo "YouTube is refusing searches right now. Stopping here, run the same command later and it picks up from this song."
+        exit 0
+      fi
       continue
     fi
+    fails=0
     body=$(printf '%s\n' "$lines" | jq -R -s --arg q "$q" '
       { query: $q,
         results: [ split("\n")[] | select(length > 0) | split("\t") | { videoId: .[0], title: .[1], channel: (.[2] // "") } ] }')
@@ -56,7 +71,7 @@ while IFS=$'\t' read -r title artist; do
     if [ "$(printf '%s' "$reply" | jq -r '.stored // false')" = "true" ]; then stored=$((stored + 1)); fi
     echo "[$count/$TOTAL] $title / $artist / $kind: $(printf '%s' "$reply" | jq -r 'if .stored then "saved \(.count)" else (.reason // .error // "skipped") end')"
     echo "$q" >> "$DONE"
-    sleep 2
+    sleep $((3 + RANDOM % 4))
   done
 done < "$SONGS"
 
