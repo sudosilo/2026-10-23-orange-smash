@@ -19,6 +19,14 @@
     {
       "source": "/api/beatmatch",
       "destination": "https://offset-listener.vercel.app/api/beatmatch"
+    },
+    {
+      "source": "/api/artist-info",
+      "destination": "https://offset-listener.vercel.app/api/artist-info"
+    },
+    {
+      "source": "/api/album-info",
+      "destination": "https://offset-listener.vercel.app/api/album-info"
     }
   ],
   "headers": [

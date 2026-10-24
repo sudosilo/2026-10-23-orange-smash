@@ -154,6 +154,7 @@
   .infoHead { font-size: 16px; font-weight: 700; }
   .infoSub { font-size: 11px; letter-spacing: 1px; color: var(--ink-faint); text-transform: uppercase; margin: 2px 0 6px; }
   .infoRow { padding: 6px 0; border-top: 1px solid #e6e2d9; }
+  .albumLink { color: var(--ink); text-decoration: none; border-bottom: 1px dashed var(--chassis-edge); }
   .infoRow b { display: block; font-size: 10px; letter-spacing: 1.5px; color: var(--ink-faint); font-weight: 600; text-transform: uppercase; margin-bottom: 2px; }
 
   .hide { display: none !important; }
@@ -1738,11 +1739,12 @@ function refreshInfoButtons() {
 async function showArtistInfo(artist, title) {
   const key = (artist + '|' + (title || '')).toLowerCase();
   let d = infoCache[key];
+  if (d && d.artist && !d.artist.albums.every(x => x.id)) d = null;
   if (!d) {
     $('infoTag').textContent = 'LOOKING UP';
     $('infoBody').innerHTML = '<span style="color:var(--ink-faint)">Pulling ' + esc(artist) + ' from MusicBrainz</span>';
     try { d = await (await fetch('/api/artist-info?artist=' + encodeURIComponent(artist) + '&title=' + encodeURIComponent(title || ''))).json(); } catch (e) { d = { error: 'network' }; }
-    if (d && d.artist) { infoCache[key] = d; store('artistinfo', infoCache); }
+    if (d && d.artist && d.artist.albums.every(x => x.id)) { infoCache[key] = d; store('artistinfo', infoCache); }
   }
   $('infoTag').textContent = 'MUSICBRAINZ';
   if (!d || !d.artist) { $('infoBody').innerHTML = '<span style="color:var(--ink-faint)">' + esc(d && d.error ? d.error : 'Nothing found') + '</span>'; return; }
@@ -1754,8 +1756,67 @@ async function showArtistInfo(artist, title) {
   if (a.genres.length) h += '<div class="infoRow"><b>Genres</b>' + esc(a.genres.join(', ')) + '</div>';
   if (a.members.length) h += '<div class="infoRow"><b>Members</b>' + a.members.map(m => esc(m.name) + (m.role ? ' (' + esc(m.role) + ')' : '') + (m.years ? ' <span style="color:var(--ink-faint)">' + esc(m.years) + '</span>' : '')).join('<br>') + '</div>';
   if (a.memberOf.length) h += '<div class="infoRow"><b>Member of</b>' + a.memberOf.map(m => esc(m.name) + (m.years ? ' <span style="color:var(--ink-faint)">' + esc(m.years) + '</span>' : '')).join('<br>') + '</div>';
-  if (a.albums.length) h += '<div class="infoRow"><b>Albums</b>' + a.albums.map(x => '<span class="mono" style="color:var(--ink-faint)">' + esc(x.year || '----') + '</span> ' + esc(x.title)).join('<br>') + '</div>';
+  if (a.albums.length) h += '<div class="infoRow"><b>Albums, tap one</b>' + a.albums.map((x, i) => '<a href="#" class="albumLink" data-i="' + i + '"><span class="mono" style="color:var(--ink-faint)">' + esc(x.year || '----') + '</span> ' + esc(x.title) + '</a>').join('<br>') + '</div>';
   $('infoBody').innerHTML = h;
+  $('infoBody').querySelectorAll('.albumLink').forEach(el => el.addEventListener('click', (e) => {
+    e.preventDefault();
+    const x = a.albums[+el.dataset.i];
+    if (x && x.id) showAlbum(x.id, a.name, () => showArtistInfo(artist, title));
+    else log('ALBUM', 'no album id, tap the artist again to refresh');
+  }));
+}
+let albumCache = recall('albums') || {};
+async function showAlbum(id, artistName, back) {
+  let d = albumCache[id];
+  if (!d) {
+    $('infoTag').textContent = 'LOOKING UP';
+    $('infoBody').innerHTML = '<span style="color:var(--ink-faint)">Pulling the album</span>';
+    try { d = await (await fetch('/api/album-info?id=' + encodeURIComponent(id))).json(); } catch (e) { d = { error: 'network' }; }
+    if (d && d.tracks) { albumCache[id] = d; store('albums', albumCache); }
+  }
+  $('infoTag').textContent = 'MUSICBRAINZ';
+  const artist = (d && d.artist) || artistName;
+  let h = '<div class="btnRow" style="margin-top:0"><button class="seg" id="albumBack">BACK TO ' + esc((artistName || 'ARTIST').toUpperCase().slice(0, 24)) + '</button></div>';
+  if (!d || !d.tracks) { $('infoBody').innerHTML = h + '<div style="color:var(--ink-faint);margin-top:8px">' + esc(d && d.error ? d.error : 'Nothing found') + '</div>'; $('albumBack').onclick = back; return; }
+  h += '<div style="display:flex;gap:12px;align-items:center;margin-top:10px"><img alt="" src="' + esc(d.cover) + '" style="width:96px;height:96px;border-radius:8px;object-fit:cover;background:var(--lcd-edge);flex:none" onerror="this.style.visibility=\'hidden\'"><div><div class="infoHead">' + esc(d.title) + '</div><div class="infoSub">' + esc([artist, d.released].filter(Boolean).join(' / ')) + '</div></div></div>';
+  h += '<div class="infoRow" style="margin-top:8px"><b>Tracks, use one as the words or the beat</b></div>';
+  $('infoBody').innerHTML = h;
+  const list = document.createElement('div');
+  d.tracks.forEach(t => {
+    const row = document.createElement('div');
+    row.className = 'sampRow';
+    row.innerHTML = '<div class="rt"><div>' + esc((t.disc ? t.disc + '.' : '') + t.n + '  ' + t.title) + '</div><div class="rs">' + esc(t.lengthSeconds ? fmt(t.lengthSeconds) : '') + '</div></div>';
+    const w = document.createElement('button'); w.className = 'seg'; w.textContent = 'WORDS';
+    w.addEventListener('click', () => useAsWords(t.title, artist));
+    const bt = document.createElement('button'); bt.className = 'seg'; bt.textContent = 'BEAT';
+    bt.addEventListener('click', () => useAsBeat(t.title, artist));
+    row.appendChild(w); row.appendChild(bt);
+    list.appendChild(row);
+  });
+  $('infoBody').appendChild(list);
+  $('albumBack').onclick = back;
+}
+async function useAsWords(title, artist) {
+  if (mode !== 'smash') setMode('smash');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  log('WORDS', 'pulling timed lyrics for ' + title);
+  let d = null;
+  try { d = await (await fetch('/api/lyrics?title=' + encodeURIComponent(title) + '&artist=' + encodeURIComponent(artist))).json(); } catch (e) {}
+  const hit = d && d.results && d.results[0];
+  if (hit) { pickWords(hit); return; }
+  $('wordsInput').value = title + ' ' + artist;
+  findWords();
+  log('WORDS', 'no exact match, pick from the list');
+}
+async function useAsBeat(title, artist) {
+  if (mode !== 'smash') setMode('smash');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  $('instOnly').checked = true;
+  $('tuneInput').value = title + ' ' + artist;
+  log('BEAT', 'finding the instrumental for ' + title);
+  await findTune();
+  const first = $('tuneResults').querySelector('.resultRow');
+  if (first && first.tagName === 'BUTTON') first.click();
 }
 setInterval(refreshInfoButtons, 1000);
 
