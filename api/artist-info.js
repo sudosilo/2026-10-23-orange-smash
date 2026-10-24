@@ -1,0 +1,99 @@
+export const config = { runtime: 'edge' };
+
+const MB = 'https://musicbrainz.org/ws/2';
+const UA = { 'User-Agent': 'LyricSmash/1.0 ( no-contact-configured )', Accept: 'application/json' };
+const HEADERS = { 'content-type': 'application/json' };
+
+export default async function handler(request) {
+  const params = new URL(request.url).searchParams;
+  const artist = clean(params.get('artist'));
+  const title = clean(params.get('title'));
+  if (!artist) return reply({ error: 'missing artist' }, 400);
+
+  let artistId = null, song = null;
+
+  if (title) {
+    const rec = await mb('/recording/?fmt=json&limit=5&query=' + encodeURIComponent('recording:"' + q(title) + '" AND artist:"' + q(artist) + '"'));
+    const hit = rec && rec.recordings && rec.recordings[0];
+    if (hit) {
+      const credit = hit['artist-credit'] && hit['artist-credit'][0];
+      if (credit && credit.artist) artistId = credit.artist.id;
+      const releases = (hit.releases || []).slice().sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999'));
+      const firstAlbum = releases.find(r => r['release-group'] && r['release-group']['primary-type'] === 'Album') || releases[0];
+      song = {
+        title: hit.title,
+        firstReleased: hit['first-release-date'] || null,
+        album: firstAlbum ? firstAlbum.title : null,
+        lengthSeconds: hit.length ? Math.round(hit.length / 1000) : null
+      };
+    }
+    await wait(1100);
+  }
+
+  if (!artistId) {
+    const found = await mb('/artist/?fmt=json&limit=1&query=' + encodeURIComponent('artist:"' + q(artist) + '"'));
+    const hit = found && found.artists && found.artists[0];
+    if (!hit) return reply({ error: 'artist not found', song });
+    artistId = hit.id;
+    await wait(1100);
+  }
+
+  const a = await mb('/artist/' + artistId + '?fmt=json&inc=genres+artist-rels+release-groups');
+  if (!a) return reply({ error: 'musicbrainz did not answer, try again in a few seconds', song });
+
+  const group = a.type === 'Group';
+  const people = (a.relations || [])
+    .filter(r => r.type === 'member of band' && r.artist)
+    .filter(r => group ? r.direction === 'backward' : r.direction === 'forward')
+    .map(r => ({
+      name: r.artist.name,
+      years: span(r.begin, r.end, r.ended),
+      role: (r.attributes || []).filter(x => x !== 'original').join(', ')
+    }));
+
+  const albums = (a['release-groups'] || [])
+    .filter(g => g['primary-type'] === 'Album' && !(g['secondary-types'] || []).length)
+    .sort((x, y) => (x['first-release-date'] || '9999').localeCompare(y['first-release-date'] || '9999'))
+    .map(g => ({ title: g.title, year: (g['first-release-date'] || '').slice(0, 4) || null }));
+
+  return reply({
+    artist: {
+      name: a.name,
+      type: a.type || null,
+      country: a.country || null,
+      area: a.area ? a.area.name : null,
+      hometown: a['begin-area'] ? a['begin-area'].name : null,
+      years: span(a['life-span'] && a['life-span'].begin, a['life-span'] && a['life-span'].end, a['life-span'] && a['life-span'].ended),
+      about: a.disambiguation || null,
+      genres: (a.genres || []).sort((x, y) => (y.count || 0) - (x.count || 0)).slice(0, 6).map(g => g.name),
+      members: group ? people : [],
+      memberOf: group ? [] : people,
+      albums
+    },
+    song
+  });
+}
+
+async function mb(path) {
+  for (let tryNo = 0; tryNo < 3; tryNo++) {
+    try {
+      const res = await fetch(MB + path, { headers: UA });
+      if (res.status === 503) { await wait(1500); continue; }
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (err) {
+      await wait(1000);
+    }
+  }
+  return null;
+}
+
+function span(begin, end, ended) {
+  const b = (begin || '').slice(0, 4), e = (end || '').slice(0, 4);
+  if (!b && !e) return null;
+  return (b || '?') + ' to ' + (e || (ended ? '?' : 'now'));
+}
+function q(s) { return s.replace(/["\\]/g, ' '); }
+function clean(s) { return (s || '').replace(/\(.*?\)|\[.*?\]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120); }
+function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+function reply(body, status) { return new Response(JSON.stringify(body), { status: status || 200, headers: HEADERS }); }

@@ -150,6 +150,12 @@
   .sampRow .rt div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sampRow .rs { font-size: 10px; letter-spacing: 1px; color: var(--ink-faint); }
 
+  .btnRow { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .infoHead { font-size: 16px; font-weight: 700; }
+  .infoSub { font-size: 11px; letter-spacing: 1px; color: var(--ink-faint); text-transform: uppercase; margin: 2px 0 6px; }
+  .infoRow { padding: 6px 0; border-top: 1px solid #e6e2d9; }
+  .infoRow b { display: block; font-size: 10px; letter-spacing: 1.5px; color: var(--ink-faint); font-weight: 600; text-transform: uppercase; margin-bottom: 2px; }
+
   .hide { display: none !important; }
 </style>
 </head>
@@ -299,6 +305,12 @@
 <div class="card" id="samplesCard">
   <div class="cardTitle"><span>Samples</span><span class="mono" id="sampCount"></span></div>
   <div id="sampList"><div class="sampRow"><span class="rs">Tap sample while a smash plays, tap again to stop and export</span></div></div>
+</div>
+
+<div class="card">
+  <div class="cardTitle"><span>Artist info</span><span class="mono" id="infoTag">MUSICBRAINZ</span></div>
+  <div class="btnRow" id="infoBtns" style="margin-top:0"></div>
+  <div id="infoBody" style="margin-top:8px;font-size:13px;line-height:1.5;"><span style="color:var(--ink-faint)">Pick or hear a song, then tap a name to pull up the artist</span></div>
 </div>
 
 <div class="card">
@@ -1693,6 +1705,59 @@ async function replaySample(r) {
   log('REPLAY', r.name + ' from ' + fmt(r.start) + (replayEnd !== null ? ' to ' + fmt(replayEnd) : ''));
 }
 renderSamples();
+
+/* ===== ARTIST INFO from MusicBrainz ===== */
+let infoSig = '', infoCache = recall('artistinfo') || {};
+function infoTargets() {
+  const out = [];
+  if (mode === 'smash') {
+    if (words) out.push({ label: 'WORDS: ' + words.artist, artist: words.artist, title: words.title });
+    if (tune) { const sp = splitYt(tune.title, tune.channel); if (sp.artist) out.push({ label: 'BEAT: ' + sp.artist, artist: sp.artist, title: sp.title }); }
+  } else if (mode === 'karaoke') {
+    if (live) out.push({ label: live.artist, artist: live.artist, title: live.title });
+  } else {
+    if (liveSong) out.push({ label: 'LIVE: ' + liveSong.artist, artist: liveSong.artist, title: liveSong.title });
+    if (donor && donor.artist) out.push({ label: 'DONOR: ' + donor.artist, artist: donor.artist, title: donor.title });
+  }
+  return out;
+}
+function refreshInfoButtons() {
+  const list = infoTargets();
+  const sig = mode + JSON.stringify(list);
+  if (sig === infoSig) return;
+  infoSig = sig;
+  $('infoBtns').innerHTML = '';
+  list.forEach(t => {
+    const b = document.createElement('button');
+    b.className = 'seg';
+    b.textContent = t.label.slice(0, 34);
+    b.addEventListener('click', () => showArtistInfo(t.artist, t.title));
+    $('infoBtns').appendChild(b);
+  });
+}
+async function showArtistInfo(artist, title) {
+  const key = (artist + '|' + (title || '')).toLowerCase();
+  let d = infoCache[key];
+  if (!d) {
+    $('infoTag').textContent = 'LOOKING UP';
+    $('infoBody').innerHTML = '<span style="color:var(--ink-faint)">Pulling ' + esc(artist) + ' from MusicBrainz</span>';
+    try { d = await (await fetch('/api/artist-info?artist=' + encodeURIComponent(artist) + '&title=' + encodeURIComponent(title || ''))).json(); } catch (e) { d = { error: 'network' }; }
+    if (d && d.artist) { infoCache[key] = d; store('artistinfo', infoCache); }
+  }
+  $('infoTag').textContent = 'MUSICBRAINZ';
+  if (!d || !d.artist) { $('infoBody').innerHTML = '<span style="color:var(--ink-faint)">' + esc(d && d.error ? d.error : 'Nothing found') + '</span>'; return; }
+  const a = d.artist;
+  const where = [a.hometown, a.area && a.area !== a.hometown ? a.area : null, a.country].filter(Boolean).join(', ');
+  let h = '<div class="infoHead">' + esc(a.name) + '</div><div class="infoSub">' + esc([a.type, where, a.years].filter(Boolean).join(' / ')) + '</div>';
+  if (a.about) h += '<div class="infoRow">' + esc(a.about) + '</div>';
+  if (d.song) h += '<div class="infoRow"><b>This song</b>' + esc(d.song.title) + (d.song.album ? ', from ' + esc(d.song.album) : '') + (d.song.firstReleased ? ', released ' + esc(d.song.firstReleased) : '') + (d.song.lengthSeconds ? ', ' + fmt(d.song.lengthSeconds) : '') + '</div>';
+  if (a.genres.length) h += '<div class="infoRow"><b>Genres</b>' + esc(a.genres.join(', ')) + '</div>';
+  if (a.members.length) h += '<div class="infoRow"><b>Members</b>' + a.members.map(m => esc(m.name) + (m.role ? ' (' + esc(m.role) + ')' : '') + (m.years ? ' <span style="color:var(--ink-faint)">' + esc(m.years) + '</span>' : '')).join('<br>') + '</div>';
+  if (a.memberOf.length) h += '<div class="infoRow"><b>Member of</b>' + a.memberOf.map(m => esc(m.name) + (m.years ? ' <span style="color:var(--ink-faint)">' + esc(m.years) + '</span>' : '')).join('<br>') + '</div>';
+  if (a.albums.length) h += '<div class="infoRow"><b>Albums</b>' + a.albums.map(x => '<span class="mono" style="color:var(--ink-faint)">' + esc(x.year || '----') + '</span> ' + esc(x.title)).join('<br>') + '</div>';
+  $('infoBody').innerHTML = h;
+}
+setInterval(refreshInfoButtons, 1000);
 
 /* main loop */
 setInterval(() => { if (mode === 'smash') smashTick(); else if (mode === 'karaoke') karaokeTick(); else liveTick(); }, 100);
