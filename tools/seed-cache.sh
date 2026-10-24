@@ -6,6 +6,7 @@
 #       bash tools/seed-cache.sh 0 list.txt (your own list, one "Title|Artist" per line)
 #       bash tools/seed-cache.sh bottom     (second phone: same list, starting from the last song)
 #       bash tools/seed-cache.sh middle     (third phone: starts in the middle and works up)
+#       bash tools/seed-cache.sh holiday    (Starbucks and retail holiday in-store songs)
 #       bash tools/seed-cache.sh heard      (every song Offset Listener has recognized in stores and on the radio)
 
 API="https://offset-listener.vercel.app/api/seed-search"
@@ -14,6 +15,11 @@ REVERSE=0
 MIDDLE=0
 if [ "$1" = "bottom" ]; then REVERSE=1; shift; fi
 if [ "$1" = "middle" ]; then MIDDLE=1; shift; fi
+if [ "$1" = "holiday" ]; then
+  shift
+  set -- 0 "$(cd "$(dirname "$0")" && pwd)/lists/holiday.txt"
+  echo "using the holiday in-store list"
+fi
 if [ "$1" = "heard" ]; then
   shift
   curl -s https://offset-listener.vercel.app/api/heard-list -o "$HOME/.smash-seed-heard.txt"
