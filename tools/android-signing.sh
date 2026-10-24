@@ -2,6 +2,7 @@
 # One time: makes the key that signs the Android app and hands it to GitHub as build secrets.
 # Every future build is signed with it, so new versions install over old ones.
 set -e
+command -v openssl >/dev/null 2>&1 || pkg install openssl-tool -y </dev/null
 REPO="sudosilo/2026-10-23-orange-smash"
 DIR="$HOME/.smash-signing"
 mkdir -p "$DIR" && cd "$DIR"
