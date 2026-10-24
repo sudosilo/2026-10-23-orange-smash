@@ -12,50 +12,36 @@ export default async function handler(request) {
 
   let artistId = null, song = null;
 
+  const found = await mb('/artist/?fmt=json&limit=5&query=' + encodeURIComponent('artist:"' + q(artist) + '"'));
+  const cands = (found && found.artists) || [];
+  const pick = cands.find(x => norm(x.name) === norm(artist)) || cands[0];
+  if (!pick) return reply({ error: 'artist not found' });
+  artistId = pick.id;
+  await wait(1100);
+
   if (title) {
-    const base = 'recording:"' + q(title) + '" AND artist:"' + q(artist) + '"';
-    let rec = await mb('/recording/?fmt=json&limit=100&query=' + encodeURIComponent(base + ' AND primarytype:album AND status:official AND NOT secondarytype:*'));
-    if (!rec || !(rec.recordings || []).length) { await wait(1100); rec = await mb('/recording/?fmt=json&limit=100&query=' + encodeURIComponent(base)); }
-    const all = (rec && rec.recordings) || [];
-    const wantT = norm(title), wantA = norm(artist);
-    const credited = r => norm((r['artist-credit'] || []).map(x => x.name).join(' '));
-    const sameArtist = r => credited(r) === wantA || norm(((r['artist-credit'] || [])[0] || {}).name) === wantA;
-    const exactBoth = all.filter(r => norm(r.title) === wantT && sameArtist(r));
-    const exact = exactBoth.length ? exactBoth : all.filter(sameArtist);
-    const base_ = exact.length ? exact : all;
-    const own = r => {
-      const ac = r['artist-credit'];
-      return !ac || !ac.length || norm(ac.map(x => x.name).join(' ')) === wantA || norm(ac[0].name) === wantA;
-    };
-    const studio = r => r.status === 'Official' && r['release-group'] && r['release-group']['primary-type'] === 'Album' && !(r['release-group']['secondary-types'] || []).length && own(r);
+    const wantT = norm(title);
+    const studio = r => r.status === 'Official' && r['release-group'] && r['release-group']['primary-type'] === 'Album' && !(r['release-group']['secondary-types'] || []).length;
+    const rec = await mb('/recording/?fmt=json&limit=100&query=' + encodeURIComponent('arid:' + artistId + ' AND recording:"' + q(title) + '"'));
+    const all = ((rec && rec.recordings) || []).filter(r => norm(r.title) === wantT);
     let best = null;
-    for (const recn of base_) {
+    for (const recn of all) {
       for (const rel of recn.releases || []) {
         if (!studio(rel) || !rel.date) continue;
         if (!best || rel.date < best.rel.date) best = { recn, rel };
       }
     }
-    const pool = base_.filter(r => r['first-release-date']).sort((x, y) => x['first-release-date'].localeCompare(y['first-release-date']));
-    const hit = best ? best.recn : (pool[0] || all[0]);
+    const pool = all.filter(r => r['first-release-date']).sort((x, y) => x['first-release-date'].localeCompare(y['first-release-date']));
+    const hit = best ? best.recn : pool[0];
     if (hit) {
-      const credit = hit['artist-credit'] && hit['artist-credit'][0];
-      if (credit && credit.artist) artistId = credit.artist.id;
-      const lengths = base_.map(r => r.length).filter(Boolean);
+      const lengths = all.map(r => r.length).filter(Boolean).sort((x, y) => x - y);
       song = {
         title: hit.title,
-        firstReleased: (pool[0] && pool[0]['first-release-date']) || hit['first-release-date'] || null,
+        firstReleased: (pool[0] && pool[0]['first-release-date']) || null,
         album: best ? best.rel.title : null,
-        lengthSeconds: hit.length ? Math.round(hit.length / 1000) : (lengths.length ? Math.round(lengths[0] / 1000) : null)
+        lengthSeconds: hit.length ? Math.round(hit.length / 1000) : (lengths.length ? Math.round(lengths[Math.floor(lengths.length / 2)] / 1000) : null)
       };
     }
-    await wait(1100);
-  }
-
-  if (!artistId) {
-    const found = await mb('/artist/?fmt=json&limit=1&query=' + encodeURIComponent('artist:"' + q(artist) + '"'));
-    const hit = found && found.artists && found.artists[0];
-    if (!hit) return reply({ error: 'artist not found', song });
-    artistId = hit.id;
     await wait(1100);
   }
 
