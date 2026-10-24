@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#e9e6df">
+<meta name="build" content="3ff68a8-plus">
 <title>Smash Director</title>
 <link rel="manifest" href="/manifest.json">
 <link rel="icon" type="image/png" href="/favicon.png">
@@ -418,6 +419,21 @@
 </div>
 
 
+<div id="errBar" style="display:none;position:fixed;left:8px;right:8px;bottom:8px;z-index:99;background:#fff3ef;border:1px solid #c4561f;color:#7a2d0c;border-radius:10px;padding:10px;font:12px ui-monospace,Menlo,monospace;max-height:40vh;overflow:auto"></div>
+<script>
+window.addEventListener('error', function (e) {
+  var bar = document.getElementById('errBar');
+  if (!bar) return;
+  bar.style.display = 'block';
+  bar.textContent += 'PAGE ERROR: ' + (e.message || e) + (e.lineno ? ' at line ' + e.lineno : '') + '\n';
+});
+window.addEventListener('unhandledrejection', function (e) {
+  var bar = document.getElementById('errBar');
+  if (!bar) return;
+  bar.style.display = 'block';
+  bar.textContent += 'PAGE ERROR: ' + (e.reason && e.reason.message ? e.reason.message : e.reason) + '\n';
+});
+</script>
 <script>
 const $ = (id) => document.getElementById(id);
 let sb = null, sbUser = null, sbReady = false;
