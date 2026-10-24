@@ -2256,26 +2256,77 @@ function autoSay() {
   else if (autoState.on && autoState.voiceEndAt) h += '<br>NEXT VOICE IN ' + fmt(Math.max(0, autoState.voiceEndAt - t));
   $('autoStatus').innerHTML = h;
 }
-async function autoPick(side, targetBpm) {
+async function autoPick(side, targetBpm, spread) {
   const st = autoSettings();
   const tag = side === 'inst' ? st.instTag : st.acaTag;
   const era = side === 'inst' ? st.instEra : st.acaEra;
-  const key = side + '|' + tag + '|' + era + '|' + Math.round(targetBpm);
+  const key = side + '|' + tag + '|' + era + '|' + Math.round(targetBpm) + '|' + Math.round(spread || 6);
   const q = autoState.queues[key] || (autoState.queues[key] = []);
   while (q.length) { const c = q.shift(); if (!autoState.played.includes((c.title + '|' + c.artist).toLowerCase())) return c; }
   const skip = autoState.played.slice(-60).join(',');
   let d = null;
-  try { d = await (await fetch('/api/auto-pick?tag=' + encodeURIComponent(tag) + '&era=' + encodeURIComponent(era) + '&bpm=' + targetBpm + '&skip=' + encodeURIComponent(skip))).json(); } catch (e) {}
-  if (!d || !d.picks || !d.picks.length) { log('AUTOSMASH', (d && d.error) || 'no ' + tag + ' songs near ' + Math.round(targetBpm) + ' BPM this round, trying again'); return null; }
+  try { d = await (await fetch('/api/auto-pick?tag=' + encodeURIComponent(tag) + '&era=' + encodeURIComponent(era) + '&bpm=' + targetBpm + '&spread=' + Math.round(spread || 6) + '&skip=' + encodeURIComponent(skip))).json(); } catch (e) {}
+  if (!d || !d.picks || !d.picks.length) return null;
   q.push(...d.picks.slice(1));
   return d.picks[0];
 }
 function autoMark(c) { autoState.played.push((c.title + '|' + c.artist).toLowerCase()); if (autoState.played.length > 200) autoState.played.shift(); }
-async function autoVideo(q, re) {
+function titleIn(videoTitle, songTitle) {
+  const v = normLine(decodeHtml(videoTitle)).replace(/ /g, ''), t = normLine(songTitle).replace(/ /g, '');
+  return !!t && v.includes(t.slice(0, Math.max(6, Math.min(t.length, 18))));
+}
+async function autoVideo(q, re, songTitle) {
   let d = null;
   try { d = await (await fetch('/api/youtube-search?q=' + encodeURIComponent(q))).json(); } catch (e) {}
-  const rows = (d && d.results ? d.results : []).filter(r => re.test(decodeHtml(r.title)));
+  const rows = (d && d.results ? d.results : []).filter(r => re.test(decodeHtml(r.title)) && titleIn(r.title, songTitle));
   return rows[0] || null;
+}
+function bestFold(beatBpm, voiceBpm) {
+  let best = 1;
+  [1, 2, 0.5].forEach(f => { if (Math.abs(beatBpm - voiceBpm * f) < Math.abs(beatBpm - voiceBpm * best)) best = f; });
+  return best;
+}
+/* a voice only counts if it has timed lyrics and a real acapella upload */
+async function autoFindVoice(targetBpm) {
+  for (const spread of [Math.max(5, targetBpm * 0.05), Math.max(9, targetBpm * 0.09), 16]) {
+    for (let tries = 0; tries < 4 && autoState.on; tries++) {
+      const c = await autoPick('aca', targetBpm, spread);
+      if (!c) break;
+      autoMark(c);
+      let d = null;
+      try { d = await (await fetch('/api/lyrics?title=' + encodeURIComponent(c.title) + '&artist=' + encodeURIComponent(c.artist))).json(); } catch (e) {}
+      const lyr = d && d.results && d.results[0];
+      if (!lyr) continue;
+      const vid = await autoVideo(c.title + ' ' + c.artist + ' acapella', ACA_WORDS, c.title);
+      if (!vid) continue;
+      return { c, lyr, vid };
+    }
+  }
+  return null;
+}
+/* a beat only counts if there is an instrumental upload of that exact song */
+async function autoFindBeat(targetBpm) {
+  for (const spread of [Math.max(4, targetBpm * 0.04), Math.max(8, targetBpm * 0.08), 16]) {
+    for (let tries = 0; tries < 4 && autoState.on; tries++) {
+      const c = await autoPick('inst', targetBpm, spread);
+      if (!c) break;
+      autoMark(c);
+      const vid = await autoVideo(c.title + ' ' + c.artist + ' instrumental', /instrumental|karaoke|no vocals|backing track/i, c.title);
+      if (vid) return { c, vid };
+    }
+  }
+  return null;
+}
+async function autoLoadVoice(v) {
+  const beatBpm = parseFloat($('tuneBpm').value) || autoSettings().bpm;
+  fold = bestFold(beatBpm, v.c.bpm);
+  document.querySelectorAll('[data-fold]').forEach(x => x.classList.toggle('on', parseFloat(x.getAttribute('data-fold')) === fold));
+  v.lyr.bpm = v.c.bpm;
+  pickWords(v.lyr);
+  try { await acaSearch; } catch (e) {}
+  if (!aca || aca.videoId !== v.vid.videoId) pickAca(v.vid);
+  autoState.voicePick = v.c;
+  autoScheduleDrop();
 }
 async function autoNextBeat() {
   if (autoState.busy) return;
@@ -2284,23 +2335,21 @@ async function autoNextBeat() {
   setArmed(true);
   autoSay();
   const st = autoSettings();
-  for (let tries = 0; tries < 6 && autoState.on; tries++) {
-    const c = await autoPick('inst', st.bpm);
-    if (!c) { await new Promise(r => setTimeout(r, 1500)); continue; }
-    autoMark(c);
-    const v = await autoVideo(c.title + ' ' + c.artist + ' instrumental', /instrumental|karaoke|no vocals|backing track|beat/i);
-    if (!v) continue;
-    autoState.beatPick = c;
-    $('stretchOn').checked = true;
-    $('snapOn').checked = true;
-    pickTune({ videoId: v.videoId, title: decodeHtml(v.title), channel: decodeHtml(v.channel), bpm: c.bpm * (c.fold || 1) });
-    wantPlay = true;
-    loadTune(true);
-    break;
-  }
+  log('AUTOSMASH', 'finding a ' + st.acaTag + ' voice near ' + Math.round(st.bpm) + ' BPM first');
+  const voice = await autoFindVoice(st.bpm);
+  if (!voice) { autoState.busy = false; autoFail('no ' + st.acaTag + ' acapellas near ' + Math.round(st.bpm) + ' BPM, try another genre, decade or BPM'); return; }
+  log('AUTOSMASH', 'voice ready, ' + voice.c.title + ' at ' + Math.round(voice.c.bpm) + ' BPM, finding a ' + st.instTag + ' beat to match');
+  const beat = await autoFindBeat(voice.c.bpm);
+  if (!beat) { autoState.busy = false; autoFail('no ' + st.instTag + ' instrumentals near ' + Math.round(voice.c.bpm) + ' BPM, try another genre or decade'); return; }
+  autoState.beatPick = beat.c;
+  $('stretchOn').checked = true;
+  $('snapOn').checked = true;
+  pickTune({ videoId: beat.vid.videoId, title: decodeHtml(beat.vid.title), channel: decodeHtml(beat.vid.channel), bpm: beat.c.bpm });
+  wantPlay = true;
+  loadTune(true);
+  await new Promise(r => setTimeout(r, 1500));
+  await autoLoadVoice(voice);
   autoState.busy = false;
-  if (autoState.on && autoState.beatPick) autoNextVoice();
-  else if (autoState.on) log('AUTOSMASH', 'could not find a beat, try another genre or BPM');
   autoSay();
 }
 async function autoNextVoice() {
@@ -2310,26 +2359,15 @@ async function autoNextVoice() {
   setArmed(true);
   autoSay();
   const beatBpm = parseFloat($('tuneBpm').value) || autoSettings().bpm;
-  for (let tries = 0; tries < 8 && autoState.on; tries++) {
-    const c = await autoPick('aca', beatBpm);
-    if (!c) { await new Promise(r => setTimeout(r, 1500)); continue; }
-    autoMark(c);
-    let d = null;
-    try { d = await (await fetch('/api/lyrics?title=' + encodeURIComponent(c.title) + '&artist=' + encodeURIComponent(c.artist))).json(); } catch (e) {}
-    const hit = d && d.results && d.results[0];
-    if (!hit) continue;
-    hit.bpm = c.bpm;
-    fold = c.fold || 1;
-    document.querySelectorAll('[data-fold]').forEach(x => x.classList.toggle('on', parseFloat(x.getAttribute('data-fold')) === fold));
-    pickWords(hit);
-    try { await acaSearch; } catch (e) {}
-    if (!aca) continue;
-    autoState.voicePick = c;
-    break;
-  }
+  const voice = await autoFindVoice(beatBpm);
   autoState.busy = false;
-  if (!autoState.voicePick) { autoSay(); return; }
-  autoScheduleDrop();
+  if (!voice) { log('AUTOSMASH', 'no more voices for this beat, moving to a new beat'); autoNextBeat(); return; }
+  await autoLoadVoice(voice);
+  autoSay();
+}
+function autoFail(msg) {
+  log('AUTOSMASH', msg, 0);
+  autoStop();
 }
 function autoScheduleDrop() {
   let t = 0; try { t = player.getCurrentTime() || 0; } catch (e) {}
@@ -2368,7 +2406,7 @@ setInterval(() => {
   if (playerState !== 1) return;
   const voiceDone = autoState.voiceEndAt && t > autoState.voiceEndAt;
   const voiceStopped = dropAt !== null && t > dropAt + 5 && acaState === 0;
-  if (voiceDone || voiceStopped || (!autoState.voicePick && Date.now() - autoState.lastTry > 15000)) { autoState.lastTry = Date.now(); autoNextVoice(); }
+  if (voiceDone || voiceStopped) autoNextVoice();
 }, 1000);
 
 /* main loop */
