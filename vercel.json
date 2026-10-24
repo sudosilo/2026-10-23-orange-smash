@@ -1,9 +1,35 @@
 {
   "rewrites": [
-    { "source": "/api/time", "destination": "https://offset-listener.vercel.app/api/time" },
-    { "source": "/api/recognize", "destination": "https://offset-listener.vercel.app/api/recognize" },
-    { "source": "/api/youtube-search", "destination": "https://offset-listener.vercel.app/api/youtube-search" },
-    { "source": "/api/bpm", "destination": "https://offset-listener.vercel.app/api/bpm-lookup" },
-    { "source": "/api/beatmatch", "destination": "https://offset-listener.vercel.app/api/beatmatch" }
+    {
+      "source": "/api/time",
+      "destination": "https://offset-listener.vercel.app/api/time"
+    },
+    {
+      "source": "/api/recognize",
+      "destination": "https://offset-listener.vercel.app/api/recognize"
+    },
+    {
+      "source": "/api/youtube-search",
+      "destination": "https://offset-listener.vercel.app/api/youtube-search"
+    },
+    {
+      "source": "/api/bpm",
+      "destination": "https://offset-listener.vercel.app/api/bpm-lookup"
+    },
+    {
+      "source": "/api/beatmatch",
+      "destination": "https://offset-listener.vercel.app/api/beatmatch"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/s",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/plain; charset=utf-8"
+        }
+      ]
+    }
   ]
 }
