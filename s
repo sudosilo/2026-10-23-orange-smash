@@ -3,7 +3,13 @@
 main() {
   cd ~ && pwd
   until curl -sf -o /dev/null https://api.github.com; do echo "no internet yet, trying again in 30 s"; sleep 30; done
-  until pkg install yt-dlp jq curl git -y </dev/null; do echo "install failed, trying again in 30 s"; sleep 30; pkg update -y </dev/null; done
+  # use the main Termux package server instead of whatever mirror this phone picked
+  echo "deb https://packages-cf.termux.dev/apt/termux-main stable main" > "$PREFIX/etc/apt/sources.list"
+  rm -rf "$PREFIX/etc/termux/chosen_mirrors" "$PREFIX/etc/termux/mirrors/default" 2>/dev/null
+  dpkg --configure -a </dev/null 2>/dev/null
+  until apt-get update </dev/null && apt-get install -y -o Dpkg::Options::=--force-confold yt-dlp jq curl git </dev/null; do
+    echo "install failed, trying again in 30 s"; sleep 30; dpkg --configure -a </dev/null 2>/dev/null
+  done
   until [ -d 2026-10-23-orange-smash/.git ]; do
     git clone https://github.com/sudosilo/2026-10-23-orange-smash || { echo "download failed, trying again in 30 s"; sleep 30; }
   done
