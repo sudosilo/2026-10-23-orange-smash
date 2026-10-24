@@ -13,7 +13,9 @@ export default async function handler(request) {
   let artistId = null, song = null;
 
   if (title) {
-    const rec = await mb('/recording/?fmt=json&limit=40&query=' + encodeURIComponent('recording:"' + q(title) + '" AND artist:"' + q(artist) + '"'));
+    const base = 'recording:"' + q(title) + '" AND artist:"' + q(artist) + '"';
+    let rec = await mb('/recording/?fmt=json&limit=100&query=' + encodeURIComponent(base + ' AND primarytype:album AND status:official AND NOT secondarytype:*'));
+    if (!rec || !(rec.recordings || []).length) { await wait(1100); rec = await mb('/recording/?fmt=json&limit=100&query=' + encodeURIComponent(base)); }
     const all = (rec && rec.recordings) || [];
     const wantT = norm(title), wantA = norm(artist);
     const exact = all.filter(r => norm(r.title) === wantT && norm(((r['artist-credit'] || [])[0] || {}).name).includes(wantA));
