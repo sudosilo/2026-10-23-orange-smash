@@ -183,6 +183,9 @@
   .c-samp { border-left-color: #b8325a; } .c-samp .cardTitle { color: #b8325a; }
   .c-ink { border-left-color: var(--ink); } .c-ink .cardTitle { color: var(--ink); }
 
+  .helpText p { font-size: 13px; line-height: 1.55; margin: 0 0 10px; color: var(--ink-soft); }
+  .helpText b { color: var(--ink); }
+
   .hide { display: none !important; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
@@ -196,10 +199,22 @@
 </header>
 <nav id="menu">
   <a href="#" data-go="profile">Profile</a>
-  <a href="#" data-go="samplesCard">Samples</a>
-  <a href="#" data-go="infoCard">Artist info</a>
-  <a href="#" data-go="statsCard">Word count</a>
+  <a href="#" data-go="help">How it works</a>
 </nav>
+
+<div class="card hide c-ink" id="helpCard">
+  <div class="cardTitle"><span>How it works</span><span></span></div>
+  <div class="helpText">
+    <p><b>Smash</b> plays one song's instrumental as the beat and lays another song's acapella and timed lyrics over it. Find a beat in the Instrumental card and a voice in the Acapella card. Every result shows its BPM and how far it is from the other side, closest matches on top.</p>
+    <p>Press play, then tap DROP right where the voice should come in. The voice waits at the line picked in Acapella settings, then starts on the beat. Type an exact drop time there instead if you know it, nudge it with the plus and minus buttons, and tap FROM THE TOP to hear it again from the start. Every drop is logged so you can go back to one.</p>
+    <p><b>Stretch</b> speeds the voice up or slows it down to the beat's BPM, or turn it off to keep the original speed. <b>Snap</b> lands drops, nudges and restarts on the beat. Play the instrumental and tap SET on a downbeat to anchor the grid.</p>
+    <p><b>Live karaoke</b> listens to a song playing around you, names it, and rolls its lyrics in time. The NOW line is the one being sung, NEXT is coming up, and the bar between them fills as it gets close.</p>
+    <p><b>Live smash</b> listens the same way, then plays that song's instrumental in sync with the room and suggests other songs at the same BPM. Pick one and its acapella drops in on the next bar. Search the suggestions by name, or type a number like 120 to find songs at that BPM.</p>
+    <p><b>Samples</b> records whatever is playing. Tap the sample bar to start and again to stop. It saves the sound plus a recipe that rebuilds the smash, and REPLAY plays it back. Signed in, samples go to your profile and show up on every phone.</p>
+    <p><b>Artist info</b> pulls the band, members, genres and albums for anyone on screen. Tap an album to see its tracks and use any track as the acapella or the instrumental.</p>
+    <p>Tap any card title to fold it away.</p>
+  </div>
+</div>
 
 <div class="card hide c-ink" id="profileCard">
   <div class="cardTitle"><span>Profile</span><span class="mono" id="profTag">SUPABASE</span></div>
@@ -1894,8 +1909,7 @@ document.querySelectorAll('#menu a').forEach(a => a.addEventListener('click', (e
   e.preventDefault();
   $('menu').classList.remove('open');
   const go = a.getAttribute('data-go');
-  if (go === 'samplesCard') { setView('samples'); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
-  if (go === 'infoCard' || go === 'statsCard') setView(null);
+  if (go === 'help') { $('helpCard').classList.toggle('hide'); $('helpCard').classList.remove('shut'); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
   if (go === 'profile') { $('profileCard').classList.toggle('hide'); renderProfile(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
   const el = $(go);
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
