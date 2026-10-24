@@ -18,11 +18,14 @@ export default async function handler(request) {
     if (!rec || !(rec.recordings || []).length) { await wait(1100); rec = await mb('/recording/?fmt=json&limit=100&query=' + encodeURIComponent(base)); }
     const all = (rec && rec.recordings) || [];
     const wantT = norm(title), wantA = norm(artist);
-    const exact = all.filter(r => norm(r.title) === wantT && norm(((r['artist-credit'] || [])[0] || {}).name).includes(wantA));
+    const credited = r => norm((r['artist-credit'] || []).map(x => x.name).join(' '));
+    const sameArtist = r => credited(r) === wantA || norm(((r['artist-credit'] || [])[0] || {}).name) === wantA;
+    const exactBoth = all.filter(r => norm(r.title) === wantT && sameArtist(r));
+    const exact = exactBoth.length ? exactBoth : all.filter(sameArtist);
     const base_ = exact.length ? exact : all;
     const own = r => {
       const ac = r['artist-credit'];
-      return !ac || !ac.length || norm(ac.map(x => x.name).join(' ')).includes(wantA);
+      return !ac || !ac.length || norm(ac.map(x => x.name).join(' ')) === wantA || norm(ac[0].name) === wantA;
     };
     const studio = r => r.status === 'Official' && r['release-group'] && r['release-group']['primary-type'] === 'Album' && !(r['release-group']['secondary-types'] || []).length && own(r);
     let best = null;
