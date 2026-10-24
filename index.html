@@ -879,6 +879,7 @@ $('playBtn').addEventListener('click', () => {
   }
   wantPlay = true;
   loadTune(true);
+  primeVoice();
   if (!words) log('PLAY', 'instrumental only, pick an acapella to smash on top');
 });
 
@@ -959,7 +960,10 @@ function pickAca(r) {
   $('acaInfo').innerHTML = esc(aca.title) + '<div class="rs">' + esc(aca.channel) + '</div>';
   $('acaTag').textContent = 'LOADED';
   ensureAcaPlayer(() => {
-    if (acaLoaded !== aca.videoId) { acaLoaded = aca.videoId; acaPlayer.cueVideoById(aca.videoId, 0); }
+    if (acaLoaded === aca.videoId) return;
+    acaLoaded = aca.videoId;
+    if (mode === 'auto' && autoState.on && (acaState === 1 || acaState === 3)) { try { acaPlayer.setVolume(0); } catch (e) {} acaPlayer.loadVideoById(aca.videoId, Math.max(0, cueT - 0.3)); }
+    else acaPlayer.cueVideoById(aca.videoId, 0);
   });
   log('ACAPELLA', 'loaded ' + aca.title);
 }
@@ -1000,8 +1004,21 @@ function syncAca(tuneT) {
     $('acaTag').textContent = !$('stretchOn').checked ? 'ORIGINAL SPEED' : 'RATE ' + r.toFixed(2) + 'X' + (Math.abs(r - want) > 0.01 ? ' NEAR' : '');
   }
   if (waiting(tuneT)) {
-    if (acaState === 1 && !acaWarming) { pauseAca(); acaParkedAt = null; }
-    if (acaParkedAt !== cueT + acaShift && !acaWarming) { acaParkedAt = cueT + acaShift; warmAca(acaParkedAt); }
+    if (mode === 'auto' && autoState.on) {
+      const nowK = Date.now();
+      try { if (acaPlayer.getVolume() !== 0) acaPlayer.setVolume(0); } catch (e) {}
+      if (nowK - acaLastSync > 2500) {
+        acaLastSync = nowK;
+        try {
+          const park = Math.max(0, cueT + acaShift - 0.3);
+          if (Math.abs((acaPlayer.getCurrentTime() || 0) - park) > 1.5) acaPlayer.seekTo(park, true);
+          if (acaState !== 1 && acaState !== 3) acaPlayer.playVideo();
+        } catch (e) {}
+      }
+    } else {
+      if (acaState === 1 && !acaWarming) { pauseAca(); acaParkedAt = null; }
+      if (acaParkedAt !== cueT + acaShift && !acaWarming) { acaParkedAt = cueT + acaShift; warmAca(acaParkedAt); }
+    }
     if (dropAt !== null && dropTimerFor === dropAt && tuneT < dropAt - 1.5) dropTimerFor = null;
     if (dropAt !== null && playerState === 1 && dropTimerFor !== dropAt && dropAt - tuneT < 1.0) {
       dropTimerFor = dropAt;
@@ -1011,7 +1028,13 @@ function syncAca(tuneT) {
     return;
   }
   if (acaWarming) { acaWarming = false; try { acaPlayer.unMute(); acaPlayer.setVolume(+$('acaVol').value); } catch (e) {} }
-  if (!$('acaOn').checked || playerState !== 1) { if (acaState === 1) pauseAca(); return; }
+  if (mode === 'auto' && autoState.on) { try { if (acaPlayer.getVolume() === 0) { acaPlayer.unMute(); acaPlayer.setVolume(+$('acaVol').value); } } catch (e) {} }
+  const autoHold = mode === 'auto' && autoState.on && wantPlay;
+  if (!$('acaOn').checked || playerState !== 1) {
+    if (autoHold) { try { acaPlayer.setVolume(0); } catch (e) {} }
+    else if (acaState === 1) pauseAca();
+    return;
+  }
   const target = cueT + (tuneT - dropAt) * r + acaShift;
   const nowMs = Date.now();
   if (nowMs - acaLastSync < 500) return;
@@ -1020,7 +1043,7 @@ function syncAca(tuneT) {
   try { at = acaPlayer.getCurrentTime() || 0; } catch (e) { return; }
   try {
     const acaDur = acaPlayer.getDuration() || 0;
-    if (acaDur && target >= acaDur - 0.3) { if (acaState === 1) pauseAca(); return; }
+    if (acaDur && target >= acaDur - 0.3) { if (autoHold) { acaPlayer.setVolume(0); } else if (acaState === 1) pauseAca(); return; }
     if (acaState === 3 || nowMs < acaGraceUntil) return;
     if (Math.abs(at - target) > 0.5) acaSeek(target);
     if (acaState !== 1) acaPlayer.playVideo();
@@ -1148,6 +1171,11 @@ function showArmed(t) {
   const bar = parseFloat($('tuneBpm').value) > 0 ? 240 / parseFloat($('tuneBpm').value) : 2;
   $('leadBar').style.width = dropAt !== null && t > dropAt - bar ? Math.min(100, (1 - (dropAt - t) / bar) * 100) + '%' : '0%';
   lastIdx = -2;
+}
+/* a tap lets the phone play sound in the voice player later; start it silent so drops land on their own */
+function primeVoice() {
+  if (mode !== 'auto' || !acaPlayer || !acaReady || !aca) return;
+  try { acaPlayer.setVolume(0); acaPlayer.unMute(); acaPlayer.seekTo(Math.max(0, cueT + acaShift - 0.3), true); acaPlayer.playVideo(); } catch (e) {}
 }
 function fireDrop(at) {
   if (!isSmashy() || dropAt !== at || playerState !== 1 || !aca || !acaReady || !$('acaOn').checked) return;
@@ -2281,6 +2309,10 @@ function autoSay() {
   h += 'BEAT  ' + (b ? esc(b.title + ' / ' + b.artist + ' / ' + Math.round(b.bpm) + ' BPM') : (autoState.on ? 'finding one' : '--')) + '<br>';
   h += 'VOICE ' + (v ? esc(v.title + ' / ' + v.artist + ' / ' + Math.round(v.bpm) + ' BPM') : (autoState.on && b ? 'finding one' : '--'));
   let t = 0; try { t = player.getCurrentTime() || 0; } catch (e) {}
+  let beatLen = 0, voiceLen = 0;
+  try { beatLen = player.getDuration() || 0; } catch (e) {}
+  if (words && words.lines.length) voiceLen = (words.lines[words.lines.length - 1].t - cueT) / (appliedRate() || 1);
+  if (autoState.on && beatLen) h += '<br>BEAT LEFT ' + fmt(Math.max(0, beatLen - t)) + (voiceLen ? ' / VOICE ' + fmt(voiceLen) + (voiceLen > beatLen - t ? ' RUNS OVER' : ' FITS') : '');
   if (autoState.on && dropAt !== null && t < dropAt) h += '<br>DROPS IN ' + Math.max(0, dropAt - t).toFixed(1) + ' S';
   else if (autoState.on && autoState.voiceEndAt) h += '<br>NEXT VOICE IN ' + fmt(Math.max(0, autoState.voiceEndAt - t));
   $('autoStatus').innerHTML = h;
@@ -2422,7 +2454,13 @@ function autoStop() {
   pauseTune();
   autoSay();
 }
-$('autoGo').addEventListener('click', () => { if (autoState.on) autoStop(); else autoStart(); });
+$('autoGo').addEventListener('click', () => {
+  if (autoState.on) { autoStop(); return; }
+  // use this tap to unlock both players before the songs are found
+  ensurePlayer(() => { try { if (loadedVideo) player.playVideo(); } catch (e) {} });
+  ensureAcaPlayer(() => { try { acaPlayer.setVolume(0); if (acaLoaded) acaPlayer.playVideo(); } catch (e) {} });
+  autoStart();
+});
 $('autoNextVoiceBtn').addEventListener('click', () => { if (!autoState.on) autoStart(); else if (!autoState.busy) autoNextVoice(); });
 $('autoNextBeatBtn').addEventListener('click', () => { if (!autoState.on) autoStart(); else if (!autoState.busy) autoNextBeat(); });
 setInterval(() => {
