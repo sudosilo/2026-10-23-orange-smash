@@ -1,4 +1,4 @@
-// Stamps the build number into the app version so every release installs as an update.
+// Stamps the build number into the app version so every release installs as an update over the last one.
 const fs = require("fs");
 const f = "src-tauri/tauri.conf.json";
 const c = JSON.parse(fs.readFileSync(f, "utf8"));
