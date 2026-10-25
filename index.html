@@ -439,6 +439,18 @@
   <button class="sbtn go hide" id="msTapSound" style="width:100%;margin-top:8px">Tap to start sound on this phone</button>
 </div>
 
+<div class="card hide c-multi" id="roomCard">
+  <div class="cardTitle"><span>Band room</span><span class="mono" id="rmTag">OFF</span></div>
+  <div style="font-size:13px;color:var(--ink-soft);line-height:1.45">Type the same room code as a friend, any account works. Tapperator and the other stomp box instruments can join the same code and play on the same clock. Pick the part you run, the other person runs the rest.</div>
+  <div class="searchRow" style="margin-top:8px"><input id="rmCode" placeholder="room code" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="sbtn" id="rmJoin">Join</button></div>
+  <div class="toggleRow"><span>I run</span><span class="ctl"><button class="seg" data-rp="beat">BEAT</button><button class="seg" data-rp="voice">VOICE</button><button class="seg on" data-rp="both">BOTH</button></span></div>
+  <div class="toggleRow"><span>This phone plays</span><span class="ctl"><label class="mono" style="font-size:11px;display:flex;gap:4px;align-items:center"><input type="checkbox" id="rmHearBeat" checked>BEAT</label><label class="mono" style="font-size:11px;display:flex;gap:4px;align-items:center"><input type="checkbox" id="rmHearVoice" checked>VOICE</label></span></div>
+  <div class="toggleRow"><span>Start the beat on the room's bar line</span><input type="checkbox" id="rmAlign" checked></div>
+  <div class="toggleRow"><span>Room tempo</span><span class="ctl"><span class="mono readout" id="rmTempo">--</span><button class="seg" id="rmSetTempo">USE BEAT BPM</button></span></div>
+  <div id="rmList" style="margin-top:6px;font-size:13px"></div>
+  <div id="rmMsg" class="mono" style="font-size:12px;color:var(--accent);margin-top:8px"></div>
+</div>
+
 <div class="card hide c-samp" id="samplesCard">
   <div class="cardTitle"><span>My samples</span><span class="mono" id="sampCount"></span></div>
   <div id="sampWho" class="rs" style="margin-bottom:6px"></div>
@@ -633,6 +645,7 @@ function setView(v) {
   $('samplesCard').classList.toggle('hide', v !== 'samples');
   $('feedCard').classList.toggle('hide', v !== 'samples');
   $('multiCard').classList.toggle('hide', v !== 'multi');
+  $('roomCard').classList.toggle('hide', v !== 'multi');
   if (v === 'multi') { $('multiCard').classList.remove('shut'); msRender(); }
   if (v === 'samples') { $('samplesCard').classList.remove('shut'); $('feedCard').classList.remove('shut'); loadFeed(feedUser); }
   document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('on', b.getAttribute('data-view') === v));
@@ -932,7 +945,9 @@ function renderPlayKey() {
   if (isSmashy()) setLink(playing ? 'ok' : (playerState === 3 ? 'busy' : ''), playing ? 'SMASHING' : (playerState === 3 ? 'LOADING' : 'STANDBY'));
 }
 $('playBtn').addEventListener('click', () => {
+  if (rmOn && !rmPart.beat) { rmCmd(playerState === 1 ? 'pause' : 'play'); return; }
   if (!tune) { log('PLAY', 'pick an instrumental first'); return; }
+  if (rmOn && playerState !== 1 && rmAlignStart()) return;
   if (playerState === 1) { pauseTune(); return; }
   if (snapReady() && playerState === 2) {
     try { const t = player.getCurrentTime() || 0; player.seekTo(Math.max(0, snapFloor(t)), true); } catch (e) {}
@@ -1279,6 +1294,7 @@ document.querySelectorAll('[data-dt]').forEach(b => b.addEventListener('click', 
   log('DROP', 'drop moved to ' + dropAt.toFixed(3) + ' s');
 }));
 $('restartBtn').addEventListener('click', () => {
+  if (rmOn && !rmPart.beat) { rmCmd('restart'); return; }
   if (!tune) { log('RESTART', 'pick an instrumental first'); return; }
   pauseAca(); acaParkedAt = null; dropTimerFor = null; lastIdx = -2; loopCarry = 0; voiceLoopIdx = -1;
   wantPlay = true;
@@ -1358,7 +1374,7 @@ function ensureTwin() {
     });
   });
 }
-function beatVolTarget() { return msOn && !msRole.beat ? 0 : 100; }
+function beatVolTarget() { return hearBeat() ? 100 : 0; }
 function armTwin(B, t, L) {
   if (!tune) return;
   twinArmedFor = B;
@@ -1426,10 +1442,12 @@ let msName = recall('devname') || ('Phone ' + msDevId.slice(0, 3).toUpperCase())
 let msRole = recall('devrole') || { beat: true, voice: true };
 let msChan = null, msPeers = {}, msOn = false, msDirector = false, msApplying = false, msStamp = 0, msLeader = '', msSendTimer = null, msBeatSet = null, msSeekGrace = 0, msCheckTimer = null;
 
-function voiceVol() { return msOn && !msRole.voice ? 0 : +$('acaVol').value; }
+function hearBeat() { return rmOn ? rmHear.beat : !(msOn && !msRole.beat); }
+function hearVoice() { return rmOn ? rmHear.voice : !(msOn && !msRole.voice); }
+function voiceVol() { return hearVoice() ? +$('acaVol').value : 0; }
 function msBeatVolume() {
   if (!player || !playerReady) return;
-  const want = msOn && !msRole.beat ? 0 : 100;
+  const want = hearBeat() ? 100 : 0;
   if (msBeatSet === want) return;
   msBeatSet = want;
   try { player.setVolume(want); if (want) player.unMute(); } catch (e) {}
@@ -1503,17 +1521,25 @@ $('msLink').addEventListener('change', () => { if ($('msLink').checked) msJoin()
 $('msNameSave').addEventListener('click', () => { msName = $('msName').value.trim().slice(0, 24) || msName; store('devname', msName); msTrack(); msRender(); });
 
 function msTunePos() { try { return player && playerReady ? player.getCurrentTime() || 0 : 0; } catch (e) { return 0; } }
-function msState() {
+function beatPart(clk) {
   return {
-    from: msDevId, name: msName, stamp: msStamp,
     tune: tune ? { videoId: tune.videoId, title: tune.title, channel: tune.channel || '' } : null,
-    words: wordsSrc, aca: aca ? { videoId: aca.videoId, title: aca.title, channel: aca.channel } : null,
-    tuneBpm: parseFloat($('tuneBpm').value) || null, wordsBpm: parseFloat($('wordsBpm').value) || null,
-    stretch: $('stretchOn').checked, fold, cueT, acaShift, dropAt, acaOn: $('acaOn').checked,
-    loop: { beat: loopBeat, bars: loopBars, a: loopA, voice: loopVoice, vbars: voiceBars },
-    carry: loopCarry,
-    playing: wantPlay && playerState !== 2, pos: msTunePos(), at: now()
+    tuneBpm: parseFloat($('tuneBpm').value) || null,
+    loop: { beat: loopBeat, bars: loopBars, a: loopA }, carry: loopCarry, phase: gridPhase,
+    playing: wantPlay && playerState !== 2, pos: msTunePos(), at: clk()
   };
+}
+function voicePart() {
+  return {
+    words: wordsSrc, aca: aca ? { videoId: aca.videoId, title: aca.title, channel: aca.channel } : null,
+    wordsBpm: parseFloat($('wordsBpm').value) || null,
+    stretch: $('stretchOn').checked, fold, cueT, acaShift, dropAt, acaOn: $('acaOn').checked,
+    vloop: { voice: loopVoice, vbars: voiceBars }
+  };
+}
+function msState() {
+  const b = beatPart(now), v = voicePart();
+  return Object.assign({ from: msDevId, name: msName, stamp: msStamp }, b, v);
 }
 function msSend() {
   if (!msChan || !msOn || msApplying) return;
@@ -1530,50 +1556,57 @@ async function msApply(st) {
   if (!st || st.from === msDevId || st.stamp < msStamp) return;
   msStamp = st.stamp; msDirector = false; msLeader = st.from;
   msApplying = true;
-  try {
-    if (view === 'samples') setView('multi');
-    if (!isSmashy()) setMode('smash');
-    if (st.tune && (!tune || tune.videoId !== st.tune.videoId)) pickTune(Object.assign({}, st.tune, { bpm: st.tuneBpm }));
-    if (st.words && (!wordsSrc || wordsSrc.title !== st.words.title || wordsSrc.artist !== st.words.artist)) pickWords(Object.assign({}, st.words, { bpm: st.wordsBpm }), true);
-    if (st.aca && (!aca || aca.videoId !== st.aca.videoId)) pickAca(st.aca);
-    if (st.tuneBpm && parseFloat($('tuneBpm').value) !== st.tuneBpm) $('tuneBpm').value = st.tuneBpm;
-    if (st.wordsBpm && parseFloat($('wordsBpm').value) !== st.wordsBpm) { $('wordsBpm').value = st.wordsBpm; if (words) words.bpm = st.wordsBpm; }
-    $('stretchOn').checked = !!st.stretch;
-    $('acaOn').checked = st.acaOn !== false;
-    if (fold !== st.fold) { fold = st.fold || 1; document.querySelectorAll('[data-fold]').forEach(x => x.classList.toggle('on', parseFloat(x.getAttribute('data-fold')) === fold)); }
-    if (cueT !== st.cueT) { cueT = st.cueT || 0; $('cueSel').value = String(cueT); acaParkedAt = null; acaLastSync = 0; lastIdx = -2; }
-    if (acaShift !== st.acaShift) { acaShift = st.acaShift || 0; renderAs(); acaParkedAt = null; }
-    if (dropAt !== st.dropAt) setDropAt(st.dropAt, null);
-    if (st.loop) { loopBeat = !!st.loop.beat; loopBars = st.loop.bars || 4; loopA = st.loop.a || 0; if (loopVoice !== !!st.loop.voice) voiceLoopIdx = -1; loopVoice = !!st.loop.voice; voiceBars = st.loop.vbars || 4; renderLoop(); }
-    renderRatio(); renderSmashHeader();
-    if (tune) {
-      if (st.playing) {
-        let want = st.pos + Math.max(0, now() - st.at) / 1000;
-        loopCarry = st.carry || 0;
-        const B = loopEnd();
-        if (loopBeat && B && B > loopA) while (want >= B) { want -= B - loopA; loopCarry += B - loopA; }
-        wantPlay = true;
-        ensurePlayer(() => {
-          try {
-            if (loadedVideo !== tune.videoId) { loadedVideo = tune.videoId; player.loadVideoById(tune.videoId, want); msSeekGrace = Date.now() + 3000; }
-            else {
-              const cur = player.getCurrentTime() || 0;
-              if (Date.now() > msSeekGrace && Math.abs(cur - want) > 0.2) { player.seekTo(want, true); msSeekGrace = Date.now() + 2500; }
-              if (playerState !== 1 && playerState !== 3) player.playVideo();
-            }
-          } catch (e) {}
-          msBeatSet = null; msBeatVolume();
-          clearTimeout(msCheckTimer);
-          msCheckTimer = setTimeout(() => { if (wantPlay && playerState !== 1) $('msTapSound').classList.remove('hide'); }, 2500);
-        });
-      } else if (wantPlay || playerState === 1) {
-        pauseTune();
-        try { player.seekTo(st.pos, true); } catch (e) {}
-      }
-    }
-  } catch (e) {}
+  try { prepFollow(); applyVoicePart(st); applyBeatPart(st, now); } catch (e) {}
   msApplying = false;
   if (view === 'multi') msRender();
+}
+function prepFollow() {
+  if (view === 'samples') setView('multi');
+  if (!isSmashy()) setMode('smash');
+}
+function applyVoicePart(st) {
+  if (st.words && (!wordsSrc || wordsSrc.title !== st.words.title || wordsSrc.artist !== st.words.artist)) pickWords(Object.assign({}, st.words, { bpm: st.wordsBpm }), true);
+  if (st.aca && (!aca || aca.videoId !== st.aca.videoId)) pickAca(st.aca);
+  if (st.wordsBpm && parseFloat($('wordsBpm').value) !== st.wordsBpm) { $('wordsBpm').value = st.wordsBpm; if (words) words.bpm = st.wordsBpm; }
+  $('stretchOn').checked = !!st.stretch;
+  $('acaOn').checked = st.acaOn !== false;
+  if (fold !== st.fold) { fold = st.fold || 1; document.querySelectorAll('[data-fold]').forEach(x => x.classList.toggle('on', parseFloat(x.getAttribute('data-fold')) === fold)); }
+  if (cueT !== st.cueT) { cueT = st.cueT || 0; $('cueSel').value = String(cueT); acaParkedAt = null; acaLastSync = 0; lastIdx = -2; }
+  if (acaShift !== st.acaShift) { acaShift = st.acaShift || 0; renderAs(); acaParkedAt = null; }
+  if (dropAt !== st.dropAt) setDropAt(st.dropAt, null);
+  if (st.vloop) { if (loopVoice !== !!st.vloop.voice) voiceLoopIdx = -1; loopVoice = !!st.vloop.voice; voiceBars = st.vloop.vbars || 4; renderLoop(); }
+  renderRatio(); renderSmashHeader();
+}
+function applyBeatPart(st, clk) {
+  if (st.tune && (!tune || tune.videoId !== st.tune.videoId)) pickTune(Object.assign({}, st.tune, { bpm: st.tuneBpm }));
+  if (st.tuneBpm && parseFloat($('tuneBpm').value) !== st.tuneBpm) $('tuneBpm').value = st.tuneBpm;
+  if (typeof st.phase === 'number' && st.phase !== gridPhase) { gridPhase = st.phase; renderPhase(); }
+  if (st.loop) { loopBeat = !!st.loop.beat; loopBars = st.loop.bars || 4; loopA = st.loop.a || 0; if (loopBeat) ensureTwin(); renderLoop(); }
+  renderRatio(); renderSmashHeader();
+  if (!tune) return;
+  if (st.playing) {
+    let want = st.pos + Math.max(0, clk() - st.at) / 1000;
+    loopCarry = st.carry || 0;
+    const B = loopEnd();
+    if (loopBeat && B && B > loopA) while (want >= B) { want -= B - loopA; loopCarry += B - loopA; }
+    wantPlay = true;
+    ensurePlayer(() => {
+      try {
+        if (loadedVideo !== tune.videoId) { loadedVideo = tune.videoId; player.loadVideoById(tune.videoId, want); msSeekGrace = Date.now() + 3000; }
+        else {
+          const cur = player.getCurrentTime() || 0;
+          if (Date.now() > msSeekGrace && Math.abs(cur - want) > 0.2) { player.seekTo(want, true); msSeekGrace = Date.now() + 2500; }
+          if (playerState !== 1 && playerState !== 3) player.playVideo();
+        }
+      } catch (e) {}
+      msBeatSet = null; msBeatVolume();
+      clearTimeout(msCheckTimer);
+      msCheckTimer = setTimeout(() => { if (wantPlay && playerState !== 1) $('msTapSound').classList.remove('hide'); }, 2500);
+    });
+  } else if (wantPlay || playerState === 1) {
+    pauseTune();
+    try { player.seekTo(st.pos, true); } catch (e) {}
+  }
 }
 $('msTapSound').addEventListener('click', () => {
   $('msTapSound').classList.add('hide');
@@ -1583,6 +1616,163 @@ $('msTapSound').addEventListener('click', () => {
   msBeatSet = null; msBeatVolume();
   if (msChan) msChan.send({ type: 'broadcast', event: 'hello', payload: { id: msDevId } });
 });
+
+/* ===== BAND ROOM on the stomp box server: room codes across accounts, one shared clock, split parts ===== */
+const RM_URL = recall('rmurl') || 'wss://stompbox-lab-api-production.up.railway.app';
+const RM_APP = 'smash-director', RM_SCHEMA = 1;
+let rmWs = null, rmOn = false, rmStatus = 'off', rmRetry = 0, rmTimer = null, rmSeq = 0, rmOff = 0, rmBestRtt = 1e9;
+let rmCodeNow = recall('rmcode') || '', rmLoop = null, rmRoster = [], rmApplying = false, rmSendTimer = null, rmBeatStamp = 0, rmVoiceStamp = 0, rmCmdStamp = 0;
+let rmPart = recall('rmpart') || { beat: true, voice: true };
+let rmHear = recall('rmhear') || { beat: true, voice: true };
+function rmNow() { return Date.now() + rmOff; }
+function rmSay(t) { $('rmMsg').textContent = t || ''; }
+function rmSend(type, extra) {
+  if (!rmWs || rmWs.readyState !== 1) return false;
+  rmWs.send(JSON.stringify(Object.assign({ type, app: RM_APP, schema: RM_SCHEMA, room: rmCodeNow, device: msDevId, seq: ++rmSeq, ts: Date.now() }, extra)));
+  return true;
+}
+function rmPing(n) { for (let i = 0; i < n; i++) setTimeout(() => rmSend('ping', { t0: Date.now() }), i * 120); }
+function rmRender() {
+  $('rmCode').value = rmCodeNow;
+  $('rmJoin').textContent = rmOn ? 'Leave' : 'Join';
+  $('rmTag').textContent = !rmOn ? 'OFF' : rmStatus === 'live' ? 'ROOM ' + rmCodeNow.toUpperCase() : 'CONNECTING';
+  const pk = rmPart.beat && rmPart.voice ? 'both' : rmPart.beat ? 'beat' : 'voice';
+  document.querySelectorAll('[data-rp]').forEach(x => x.classList.toggle('on', x.getAttribute('data-rp') === pk));
+  $('rmHearBeat').checked = rmHear.beat; $('rmHearVoice').checked = rmHear.voice;
+  $('rmTempo').textContent = rmLoop ? rmLoop.tempo + ' BPM' + (rmLoop.playing ? '' : ' STOPPED') : '--';
+  if (!rmOn) { $('rmList').innerHTML = ''; return; }
+  const mine = msDevId.slice(0, 8);
+  $('rmList').innerHTML = rmRoster.length ? rmRoster.map(p => '<div class="msRow"><div class="nm">' + esc(p.app === RM_APP ? 'Smash Director' : p.app) + ' ' + (p.seat + 1) + (p.id === mine ? ' <span class="rs">(this phone)</span>' : '') + '</div><span class="mono" style="font-size:11px">' + (p.playing ? 'PLAYING' : 'IDLE') + '</span></div>').join('') : '<span class="rs">Waiting for the room list</span>';
+}
+function rmConnect() {
+  clearTimeout(rmTimer);
+  if (rmWs) { const o = rmWs; rmWs = null; try { o.close(); } catch (e) {} }
+  if (!rmOn || !rmCodeNow) return;
+  rmStatus = 'connecting'; rmRender();
+  let ws;
+  try { ws = new WebSocket(RM_URL + '?app=' + RM_APP + '&room=' + encodeURIComponent(rmCodeNow) + '&device=' + encodeURIComponent(msDevId)); } catch (e) { rmSay('Could not reach the room server'); return; }
+  rmWs = ws;
+  ws.onopen = () => { if (rmWs !== ws) return; rmRetry = 0; rmStatus = 'live'; rmBestRtt = 1e9; rmSend('hello', {}); rmPing(8); rmSay('In the room. Share the code ' + rmCodeNow + ' with whoever you are playing with'); rmRender(); rmSendParts(); };
+  ws.onmessage = (e) => { if (rmWs === ws) rmReceive(e.data); };
+  ws.onclose = (ev) => {
+    if (rmWs !== ws) return;
+    rmWs = null; rmStatus = 'connecting'; rmRender();
+    if (ev && ev.reason === 'origin') { rmSay('The stomp box server does not accept this site yet, it needs this address added to its allowed list'); rmOn = false; rmRender(); return; }
+    if (ev && ev.reason === 'sign in') { rmSay('The stomp box server has sign in turned on, this app does not send that sign in yet'); rmOn = false; rmRender(); return; }
+    if (ev && ev.reason === 'room full') { rmSay('That room is full, 16 phones is the most'); rmOn = false; rmRender(); return; }
+    rmTimer = setTimeout(rmConnect, Math.min(15000, 500 * Math.pow(2, rmRetry++)));
+  };
+}
+setInterval(() => { if (rmStatus === 'live') rmPing(3); }, 30000);
+setInterval(() => { if (rmStatus === 'live' && wantPlay && rmPart.beat) rmSend('beat', {}); }, 10000);
+function rmReceive(text) {
+  let m; try { m = JSON.parse(text); } catch (e) { return; }
+  if (!m || !m.type) return;
+  if (m.type === 'pong' && typeof m.t0 === 'number') {
+    const t2 = Date.now(), rtt = t2 - m.t0;
+    if (rtt < rmBestRtt + 15) { rmBestRtt = Math.min(rmBestRtt, rtt); rmOff = m.t1 + rtt / 2 - t2; }
+    return;
+  }
+  if (m.type === 'roster') {
+    rmRoster = m.phones || []; rmRender();
+    if (rmRoster.filter(p => p.app === RM_APP).length > 1 && rmPart.beat && rmPart.voice) rmSay('Another Smash Director phone is here. Pick BEAT on one phone and VOICE on the other so each runs its part');
+    return;
+  }
+  if (m.type === 'loop' && m.state) { rmLoop = m.state; rmRender(); return; }
+  if (m.app !== RM_APP) return;
+  if (m.type === 'request') { rmSendParts(true); return; }
+  if (m.type === 'change' && m.value) {
+    if (m.path === 'cmd' && Math.abs(Date.now() - m.value.stamp) > 30000) return;
+    if (m.path === 'beat' && m.value.playing && rmNow() - m.value.at > 60000) m.value.playing = false;
+    if (m.path === 'beat' && !rmPart.beat && m.value.stamp > rmBeatStamp) { rmBeatStamp = m.value.stamp; rmApplyRemote(() => applyBeatPart(m.value, rmNow)); }
+    else if (m.path === 'voice' && !rmPart.voice && m.value.stamp > rmVoiceStamp) { rmVoiceStamp = m.value.stamp; rmApplyRemote(() => applyVoicePart(m.value)); }
+    else if (m.path === 'cmd' && rmPart.beat && m.value.stamp > rmCmdStamp && m.device !== msDevId) { rmCmdStamp = m.value.stamp; rmRunCmd(m.value.action); }
+  }
+}
+function rmApplyRemote(fn) {
+  rmApplying = true; msApplying = true;
+  try { prepFollow(); fn(); } catch (e) {}
+  msApplying = false; rmApplying = false;
+}
+function rmSendParts(force) {
+  if (rmStatus !== 'live' || rmApplying) return;
+  if (rmPart.beat && (tune || force)) { rmBeatStamp = Math.max(rmBeatStamp + 1, Date.now()); rmSend('change', { path: 'beat', value: Object.assign(beatPart(rmNow), { stamp: rmBeatStamp }) }); }
+  if (rmPart.voice && (wordsSrc || force)) { rmVoiceStamp = Math.max(rmVoiceStamp + 1, Date.now()); rmSend('change', { path: 'voice', value: Object.assign(voicePart(), { stamp: rmVoiceStamp }) }); }
+}
+function rmSoon(ms) { if (!rmOn || rmApplying) return; clearTimeout(rmSendTimer); rmSendTimer = setTimeout(rmSendParts, ms || 350); }
+['click', 'change'].forEach(ev => $('mainView').addEventListener(ev, (e) => { if (e.isTrusted) rmSoon(ev === 'click' ? 600 : 350); }, true));
+setInterval(() => { if (rmStatus === 'live' && rmPart.beat && wantPlay) rmSendParts(); }, 2000);
+function rmCmd(action) {
+  rmCmdStamp = Math.max(rmCmdStamp + 1, Date.now());
+  if (rmSend('change', { path: 'cmd', value: { action, stamp: rmCmdStamp } })) log('ROOM', 'asked the beat phone to ' + action);
+  else log('ROOM', 'not connected to the room');
+}
+function rmRunCmd(action) {
+  if (action === 'pause') { if (playerState === 1) $('playBtn').click(); }
+  else if (action === 'play') { if (playerState !== 1) $('playBtn').click(); }
+  else if (action === 'restart') $('restartBtn').click();
+  setTimeout(() => rmSendParts(), 700);
+}
+/* start the beat so its beat one lands on the room's next bar line */
+let rmAnchor = null;
+function rmAlignStart() {
+  if (!rmPart.beat || !$('rmAlign').checked || !rmLoop || !rmLoop.playing || rmStatus !== 'live') return false;
+  const bm = 240000 / rmLoop.tempo, nowR = rmNow();
+  const p0 = loopBeat ? loopA : gridPhase;
+  let k = Math.ceil((nowR + 1500 - rmLoop.epoch) / bm);
+  let T = rmLoop.epoch + k * bm;
+  wantPlay = true;
+  primeVoice();
+  const startPos = p0 - (T - nowR) / 1000;
+  ensurePlayer(() => {
+    try {
+      if (startPos >= 0) {
+        if (loadedVideo !== tune.videoId) { loadedVideo = tune.videoId; player.loadVideoById(tune.videoId, startPos); } else { player.seekTo(startPos, true); player.playVideo(); }
+      } else {
+        if (loadedVideo !== tune.videoId) { loadedVideo = tune.videoId; player.cueVideoById(tune.videoId, 0); }
+        else player.seekTo(0, true);
+        setTimeout(() => { try { player.playVideo(); } catch (e) {} }, Math.max(0, -startPos * 1000));
+      }
+    } catch (e) {}
+  });
+  rmAnchor = { T, p0 };
+  /* nudge onto the bar line once the stream is moving, while the room cannot hear the jump yet */
+  [1200, 2400].forEach(d => setTimeout(() => {
+    if (!rmAnchor || rmAnchor.T !== T || playerState !== 1) return;
+    try {
+      const want = p0 + (rmNow() - T) / 1000, cur = player.getCurrentTime() || 0;
+      if (want > 0 && Math.abs(cur - want) > 0.06) player.seekTo(want + 0.04, true);
+    } catch (e) {}
+  }, Math.max(0, (T - nowR)) + d));
+  log('ROOM', 'beat one lands on the room bar line in ' + ((T - nowR) / 1000).toFixed(1) + ' s');
+  setTimeout(() => rmSendParts(), 800);
+  return true;
+}
+$('rmJoin').addEventListener('click', () => {
+  if (rmOn) { rmOn = false; clearTimeout(rmTimer); if (rmWs) { const o = rmWs; rmWs = null; try { o.close(); } catch (e) {} } rmStatus = 'off'; rmRoster = []; rmLoop = null; msBeatSet = null; msBeatVolume(); rmSay(''); rmRender(); return; }
+  const code = $('rmCode').value.trim().toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 24);
+  if (!code) { rmSay('Type a room code, letters and numbers'); return; }
+  rmCodeNow = code; store('rmcode', code);
+  rmOn = true; msBeatSet = null;
+  rmConnect();
+});
+document.querySelectorAll('[data-rp]').forEach(b => b.addEventListener('click', () => {
+  const v = b.getAttribute('data-rp');
+  rmPart = { beat: v !== 'voice', voice: v !== 'beat' };
+  store('rmpart', rmPart); rmRender(); rmSendParts();
+}));
+['rmHearBeat', 'rmHearVoice'].forEach(id => $(id).addEventListener('change', () => {
+  rmHear = { beat: $('rmHearBeat').checked, voice: $('rmHearVoice').checked };
+  store('rmhear', rmHear); msBeatSet = null; msBeatVolume(); msVoiceVolume();
+}));
+$('rmSetTempo').addEventListener('click', () => {
+  const b = parseFloat($('tuneBpm').value);
+  if (!(b > 0)) { rmSay('Set the instrumental BPM first'); return; }
+  let t = b; while (t > 200) t /= 2; while (t < 50) t *= 2;
+  if (!rmSend('transport', { action: 'tempo', tempo: Math.round(t) })) { rmSay('Join a room first'); return; }
+  rmSay('Room tempo set to ' + Math.round(t) + (Math.abs(Math.round(t) - t) > 0.05 ? ', the room only takes whole numbers so the beat will drift slowly' : ''));
+});
+rmRender();
 
 /* ===== LIVE KARAOKE MODE ===== */
 let stream = null, busy = false, karaokeTimer = null, live = null, knMs = 0;
