@@ -306,8 +306,9 @@
   <button class="key small" id="livePlayBtn" aria-label="Play"><svg viewBox="0 0 24 24" style="width:24px;height:24px"><path d="M7 5v14l12-7z"/></svg></button>
   <button class="key big" id="liveListenBtn" aria-label="Listen"><svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v7a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-2.1A7 7 0 0 0 19 12z"/></svg></button>
   <button class="key small" id="liveDropBtn" aria-label="Drop">DROP</button>
+  <button class="key small" id="liveNextBtn" aria-label="Next song">NEXT</button>
 </div>
-<div class="keyLabels mono hide" id="liveLabels"><span id="livePlayLabel">PLAY</span><span id="liveListenLabel">LISTEN</span><span>DROP</span></div>
+<div class="keyLabels mono hide" id="liveLabels"><span id="livePlayLabel">PLAY</span><span id="liveListenLabel">LISTEN</span><span>DROP</span><span>CLEAR</span></div>
 <div class="keyLabels mono hide" id="karaokeLabels"><span></span><span id="listenLabel">LISTEN</span><span></span></div>
 
 <button class="sampleBtn" id="sampleBtn"><span class="rec"></span><span id="sampleLabel">TAP TO SAMPLE</span></button>
@@ -2413,6 +2414,26 @@ function liveTick() {
     }
   } else if (acaState === 1 && (!liveWantPlay || !$('liveAcaOn').checked)) pauseAca();
 }
+
+/* clear the palette: drop the locked song, its instrumental and the donor, go quiet, and listen for whatever plays next */
+function liveClear() {
+  if (liveTimer) { clearTimeout(liveTimer); liveTimer = null; }
+  try { if (player) player.pauseVideo(); } catch (e) {}
+  pauseAca();
+  liveSong = null; liveInst = null; donor = null; donorAca = null; liveDropAt = null;
+  liveRateSet = null; liveLastSync = 0; liveShift = 0; liveNudgeMs = 0; liveWarmedFor = null;
+  loadedVideo = null;
+  clearLyrics();
+  $('liveInstInfo').textContent = 'Listen to a song and its instrumental loads here'; $('liveInstInfo').style.color = '';
+  $('liveInstResults').innerHTML = ''; $('liveInstTag').textContent = '';
+  $('liveSug').innerHTML = ''; $('liveSugTag').textContent = '';
+  $('liveAcaInfo').textContent = 'Pick a suggestion and its vocal only version loads here'; $('liveAcaResults').innerHTML = ''; $('liveAcaTag').textContent = '';
+  $('liveBpmNow').value = '';
+  renderLiveHeader(); renderLiveNudges(); renderStats(null);
+  log('CLEAR', 'cleared, listening for the next song');
+  setTimeout(liveIdentify, 400);
+}
+$('liveNextBtn').addEventListener('click', liveClear);
 
 $('liveListenBtn').addEventListener('click', liveIdentify);
 $('liveStretch').addEventListener('change', () => { liveRateSet = null; liveLastSync = 0; });
