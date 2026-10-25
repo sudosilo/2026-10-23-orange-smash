@@ -16,7 +16,7 @@ main() {
   until [ -d 2026-10-23-orange-smash/.git ]; do
     git clone https://github.com/sudosilo/2026-10-23-orange-smash || { echo "download failed, trying again in 30 s"; sleep 30; }
   done
-  cd 2026-10-23-orange-smash && git pull
+  cd 2026-10-23-orange-smash && git fetch -q origin && git reset -q --hard origin/main
   pwd
   termux-wake-lock 2>/dev/null
   if [ "$MODE" = "energy" ]; then
