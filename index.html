@@ -197,6 +197,7 @@
   .helpText p { font-size: 13px; line-height: 1.55; margin: 0 0 10px; color: var(--ink-soft); }
   .helpText b { color: var(--ink); }
 
+  .c-loop { border-left-color: #8a6d1f; } .c-loop .cardTitle { color: #8a6d1f; }
   .c-multi { border-left-color: #4a5fc4; } .c-multi .cardTitle { color: #4a5fc4; }
   .msRow { display:flex; align-items:center; gap:8px; padding:8px 0; border-top:1px solid var(--line, #ddd8cc); font-size:14px; }
   .msRow .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -351,6 +352,16 @@
     <div class="toggleRow"><span>Snap to the beat</span><input type="checkbox" id="snapOn" checked></div>
     <div class="toggleRow"><span>Snap size</span><span class="ctl"><button class="seg" data-snap="0.5">HALF</button><button class="seg on" data-snap="1">BEAT</button><button class="seg" data-snap="4">BAR</button></span></div>
     <div class="toggleRow"><span>Beat one</span><span class="ctl"><button class="seg" data-ph="-0.02">-</button><span class="mono readout" id="phaseVal">0.00 s</span><button class="seg" data-ph="0.02">+</button><button class="seg" id="beatOneBtn">SET</button></span></div>
+  </div>
+
+  <div class="card c-loop">
+    <div class="cardTitle"><span>Loops</span><span class="mono" id="loopTag">OFF</span></div>
+    <div class="toggleRow"><span>Loop the instrumental</span><input type="checkbox" id="loopBeatOn"></div>
+    <div class="toggleRow"><span>Beat loop length</span><span class="ctl"><button class="seg" data-lb="1">1</button><button class="seg" data-lb="2">2</button><button class="seg on" data-lb="4">4</button><button class="seg" data-lb="8">8</button><span class="mono" style="font-size:10px;color:var(--ink-faint)">BARS</span></span></div>
+    <div class="toggleRow"><span>Beat loop starts</span><span class="ctl"><span class="mono readout" id="loopAVal">0:00.0</span><button class="seg" id="loopHere">HERE</button></span></div>
+    <div class="toggleRow"><span>Loop the acapella</span><input type="checkbox" id="loopVoiceOn"></div>
+    <div class="toggleRow"><span>Voice loop length</span><span class="ctl"><button class="seg" data-lv="1">1</button><button class="seg" data-lv="2">2</button><button class="seg on" data-lv="4">4</button><button class="seg" data-lv="8">8</button><span class="mono" style="font-size:10px;color:var(--ink-faint)">BARS</span></span></div>
+    <div style="font-size:12px;color:var(--ink-faint);line-height:1.4;margin-top:4px">The voice loop repeats from the start line each time the length runs out. The beat keeps looping under the voice without restarting it. Bars come from the instrumental BPM.</div>
   </div>
 
   <div class="card c-aca">
@@ -804,6 +815,7 @@ $('tuneInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') findT
 
 function pickTune(t) {
   tune = t;
+  loopCarry = 0; voiceLoopIdx = -1;
   store('tune', t);
   loadPhase();
   if (words) loadDropLog();
@@ -942,12 +954,14 @@ function smashTick() {
     $('lcdTag').textContent = n < 0 ? 'COUNT IN' : 'BAR ' + (Math.floor(n / 4) + 1) + ' BEAT ' + ((n % 4) + 1);
   }
   if (replayEnd !== null && t >= replayEnd) { replayEnd = null; replayingName = null; pauseTune(); renderSamples(); paintFeedPlay(); log('SAMPLE', 'replay finished'); }
+  loopTick(t);
+  const vt = t + loopCarry;
   const rate = appliedRate();
   if (dropAt !== null) offsetSec = dropAt - cueT / rate;
-  if (words && waiting(t)) showArmed(t);
-  else if (words) showLyrics(words.lines, (t - offsetSec) * rate);
-  renderDropKey(t);
-  syncAca(t);
+  if (words && waiting(vt)) showArmed(vt);
+  else if (words) showLyrics(words.lines, cueT + voiceElapsed(vt) * rate);
+  renderDropKey(vt);
+  syncAca(vt);
   msBeatVolume();
 }
 
@@ -1082,8 +1096,10 @@ function syncAca(tuneT) {
     else if (acaState === 1) pauseAca();
     return;
   }
-  const target = cueT + (tuneT - dropAt) * r + acaShift;
+  const target = cueT + voiceElapsed(tuneT) * r + acaShift;
   const nowMs = Date.now();
+  const li = voiceLoopIndex(tuneT);
+  if (li !== voiceLoopIdx) { const jumped = voiceLoopIdx >= 0 && li > voiceLoopIdx; voiceLoopIdx = li; if (jumped) { acaSeek(target); acaLastSync = nowMs; try { if (acaState !== 1) acaPlayer.playVideo(); } catch (e) {} return; } }
   if (nowMs - acaLastSync < 500) return;
   acaLastSync = nowMs;
   let at = 0;
@@ -1200,7 +1216,7 @@ function setDropAt(v, how) {
   renderOffset();
 }
 function setArmed(v) {
-  if (v) { setDropAt(null, null); pauseAca(); acaParkedAt = null; }
+  if (v) { setDropAt(null, null); pauseAca(); acaParkedAt = null; loopCarry = 0; voiceLoopIdx = -1; }
   lastIdx = -2;
 }
 function renderDropKey(t) {
@@ -1228,7 +1244,8 @@ function fireDrop(at) {
   if (!isSmashy() || dropAt !== at || playerState !== 1 || !aca || !acaReady || !$('acaOn').checked) return;
   acaWarming = false; warmToken++;
   let t = at;
-  try { t = player.getCurrentTime() || at; } catch (e) {}
+  try { t = (player.getCurrentTime() || 0) + loopCarry; } catch (e) {}
+  voiceLoopIdx = 0;
   const start = cueT + Math.max(0, t - at) * appliedRate() + acaShift;
   try { acaPlayer.unMute(); acaPlayer.setVolume(voiceVol()); } catch (e) {}
   if (Math.abs(start - (cueT + acaShift)) > 0.3) acaSeek(start); else acaGraceUntil = Date.now() + 1500;
@@ -1237,11 +1254,12 @@ function fireDrop(at) {
 }
 $('dropBtn').addEventListener('click', () => {
   if (!words) { log('DROP', 'pick an acapella first'); return; }
-  let t = 0;
-  try { t = player.getCurrentTime() || 0; } catch (e) {}
+  let bt = 0;
+  try { bt = player.getCurrentTime() || 0; } catch (e) {}
+  const t = bt + loopCarry;
   if (!waiting(t)) { setArmed(true); log('ARM', 'voice parked at ' + fmt(cueT) + ', tap drop on the beat'); return; }
   if (playerState !== 1) { log('DROP', 'start the instrumental first, then drop on the beat'); return; }
-  const landAt = snapReady() ? snapNearest(t) : t;
+  const landAt = (snapReady() ? snapNearest(bt) : bt) + loopCarry;
   setDropAt(landAt, 'tapped' + (landAt !== t ? ', snapped ' + Math.round((landAt - t) * 1000) + ' ms' : ''));
   if (landAt <= t + 0.02) { dropTimerFor = dropAt; fireDrop(dropAt); }
   log('DROP', 'dropped at ' + dropAt.toFixed(3) + ' s of the instrumental, it is saved in your drops');
@@ -1260,7 +1278,7 @@ document.querySelectorAll('[data-dt]').forEach(b => b.addEventListener('click', 
 }));
 $('restartBtn').addEventListener('click', () => {
   if (!tune) { log('RESTART', 'pick an instrumental first'); return; }
-  pauseAca(); acaParkedAt = null; dropTimerFor = null; lastIdx = -2;
+  pauseAca(); acaParkedAt = null; dropTimerFor = null; lastIdx = -2; loopCarry = 0; voiceLoopIdx = -1;
   wantPlay = true;
   ensurePlayer(() => {
     try {
@@ -1270,6 +1288,65 @@ $('restartBtn').addEventListener('click', () => {
   });
   log('RESTART', 'from the top' + (dropAt !== null ? ', voice drops at ' + dropAt.toFixed(3) + ' s' : ', tap drop on the beat'));
 });
+
+/* loops: the beat repeats a stretch of bars, the voice repeats from its start line */
+let loopBeat = false, loopBars = 4, loopA = 0, loopCarry = 0, loopWrapFor = null, loopVoice = false, voiceBars = 4, voiceLoopIdx = -1;
+function barLen() { const b = parseFloat($('tuneBpm').value); return b > 0 ? 240 / b : null; }
+function loopEnd() { const L = barLen(); return L ? loopA + loopBars * L : null; }
+function voiceLoopLen() { const L = barLen(); return loopVoice && L ? voiceBars * L : null; }
+function voiceElapsed(vt) { const e = vt - (dropAt || 0); const L = voiceLoopLen(); return L && e > 0 ? e % L : e; }
+function voiceLoopIndex(vt) { const L = voiceLoopLen(); const e = vt - (dropAt || 0); return L && e > 0 ? Math.floor(e / L) : 0; }
+function fmtTenth(sec) { sec = Math.max(0, sec || 0); return Math.floor(sec / 60) + ':' + (sec % 60).toFixed(1).padStart(4, '0'); }
+function renderLoop() {
+  const B = loopEnd();
+  $('loopAVal').textContent = fmtTenth(loopA);
+  const parts = [];
+  if (loopBeat) parts.push(B ? 'BEAT ' + fmtTenth(loopA) + ' TO ' + fmtTenth(B) : 'BEAT NEEDS BPM');
+  if (loopVoice) parts.push(barLen() ? 'VOICE ' + voiceBars + ' BARS' : 'VOICE NEEDS BPM');
+  $('loopTag').textContent = parts.length ? parts.join(' / ') : 'OFF';
+  $('loopBeatOn').checked = loopBeat; $('loopVoiceOn').checked = loopVoice;
+  document.querySelectorAll('[data-lb]').forEach(x => x.classList.toggle('on', +x.getAttribute('data-lb') === loopBars));
+  document.querySelectorAll('[data-lv]').forEach(x => x.classList.toggle('on', +x.getAttribute('data-lv') === voiceBars));
+}
+function loopStartFromNow() {
+  const L = barLen();
+  let t = 0;
+  try { t = player && playerReady ? player.getCurrentTime() || 0 : 0; } catch (e) {}
+  loopA = L ? Math.max(0, gridPhase + Math.floor((t - gridPhase) / L + 1e-6) * L) : t;
+  loopA = Math.round(loopA * 1000) / 1000;
+}
+function loopWrap(B) {
+  loopWrapFor = null;
+  if (!loopBeat || playerState !== 1) return;
+  try { player.seekTo(loopA, true); } catch (e) {}
+  loopCarry += B - loopA;
+}
+function loopTick(t) {
+  if (!loopBeat || playerState !== 1) return;
+  const B = loopEnd();
+  if (B === null || B <= loopA) return;
+  if (t > B + 0.5) { loopCarry += t - loopA; try { player.seekTo(loopA, true); } catch (e) {} return; }
+  if (loopWrapFor === null && B - t < 0.3) { loopWrapFor = B; setTimeout(() => loopWrap(B), Math.max(0, (B - t) * 1000)); }
+}
+$('loopBeatOn').addEventListener('change', () => {
+  loopBeat = $('loopBeatOn').checked;
+  if (loopBeat) {
+    if (!barLen()) log('LOOP', 'set the instrumental BPM so the loop knows how long a bar is');
+    if (playerState === 1 || loopA === 0) loopStartFromNow();
+    log('LOOP', 'beat loops ' + loopBars + ' bars from ' + fmtTenth(loopA));
+  }
+  renderLoop();
+});
+$('loopVoiceOn').addEventListener('change', () => {
+  loopVoice = $('loopVoiceOn').checked; voiceLoopIdx = -1; acaLastSync = 0; lastIdx = -2;
+  if (loopVoice && !barLen()) log('LOOP', 'set the instrumental BPM so the voice loop knows how long a bar is');
+  renderLoop();
+});
+document.querySelectorAll('[data-lb]').forEach(b => b.addEventListener('click', () => { loopBars = +b.getAttribute('data-lb'); loopWrapFor = null; renderLoop(); }));
+document.querySelectorAll('[data-lv]').forEach(b => b.addEventListener('click', () => { voiceBars = +b.getAttribute('data-lv'); voiceLoopIdx = -1; acaLastSync = 0; renderLoop(); }));
+$('loopHere').addEventListener('click', () => { loopStartFromNow(); loopWrapFor = null; renderLoop(); log('LOOP', 'beat loop starts at ' + fmtTenth(loopA)); });
+$('tuneBpm').addEventListener('input', renderLoop);
+renderLoop();
 
 /* ===== MULTI SMASH: phones on one account share the smash, each plays its part ===== */
 let msDevId = recall('devid');
@@ -1362,6 +1439,8 @@ function msState() {
     words: wordsSrc, aca: aca ? { videoId: aca.videoId, title: aca.title, channel: aca.channel } : null,
     tuneBpm: parseFloat($('tuneBpm').value) || null, wordsBpm: parseFloat($('wordsBpm').value) || null,
     stretch: $('stretchOn').checked, fold, cueT, acaShift, dropAt, acaOn: $('acaOn').checked,
+    loop: { beat: loopBeat, bars: loopBars, a: loopA, voice: loopVoice, vbars: voiceBars },
+    carry: loopCarry,
     playing: wantPlay && playerState !== 2, pos: msTunePos(), at: now()
   };
 }
@@ -1394,10 +1473,14 @@ async function msApply(st) {
     if (cueT !== st.cueT) { cueT = st.cueT || 0; $('cueSel').value = String(cueT); acaParkedAt = null; acaLastSync = 0; lastIdx = -2; }
     if (acaShift !== st.acaShift) { acaShift = st.acaShift || 0; renderAs(); acaParkedAt = null; }
     if (dropAt !== st.dropAt) setDropAt(st.dropAt, null);
+    if (st.loop) { loopBeat = !!st.loop.beat; loopBars = st.loop.bars || 4; loopA = st.loop.a || 0; if (loopVoice !== !!st.loop.voice) voiceLoopIdx = -1; loopVoice = !!st.loop.voice; voiceBars = st.loop.vbars || 4; renderLoop(); }
     renderRatio(); renderSmashHeader();
     if (tune) {
       if (st.playing) {
-        const want = st.pos + Math.max(0, now() - st.at) / 1000;
+        let want = st.pos + Math.max(0, now() - st.at) / 1000;
+        loopCarry = st.carry || 0;
+        const B = loopEnd();
+        if (loopBeat && B && B > loopA) while (want >= B) { want -= B - loopA; loopCarry += B - loopA; }
         wantPlay = true;
         ensurePlayer(() => {
           try {
