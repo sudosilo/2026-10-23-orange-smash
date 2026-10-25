@@ -20,6 +20,7 @@ if [ "$1" = "middle" ]; then MIDDLE=1; shift; fi
 LISTS_DIR="$(cd "$(dirname "$0")" && pwd)/lists"
 KINDS="acapella instrumental"; PLAIN=0
 if [ "$1" = "classical" ]; then KINDS="instrumental"; PLAIN=1; fi
+if [ "$1" = "acappella" ]; then KINDS="acapella"; PLAIN=1; fi
 if [ -n "$1" ] && [ -f "$LISTS_DIR/$1.txt" ]; then
   echo "using the $1 list"
   set -- 0 "$LISTS_DIR/$1.txt"

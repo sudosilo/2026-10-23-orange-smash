@@ -813,6 +813,13 @@ async function lookupBpm(title, artist, field) {
 /* songs with no singing are their own instrumental: classical and other instrumental pieces */
 const NO_VOCALS = /\b(symphon|sonata|concerto|nocturne|prelude|prélude|etude|étude|fugue|toccata|partita|mazurka|polonaise|minuet|menuet|bagatelle|impromptu|scherzo|gymnop|canon in d|clair de lune|für elise|fur elise|four seasons|op\. ?\d|opus \d|bwv ?\d|k\. ?\d{2,3}|kv ?\d{2,3}|hob\. ?[ivx]|rv ?\d{2,3}|no\. ?\d+ in [a-g]\b)/i;
 const COMPOSERS = /\b(bach|beethoven|mozart|chopin|vivaldi|debussy|tchaikovsky|tchaikowsky|handel|h\u00e4ndel|haydn|brahms|schubert|liszt|satie|pachelbel|grieg|rachmaninoff|rachmaninov|dvo[r\u0159]\u00e1?k|mendelssohn|ravel|mahler|elgar|holst|saint-sa\u00ebns|saint-saens|paganini|schumann|scarlatti|telemann|corelli|albinoni|boccherini|sibelius|prokofiev|shostakovich|stravinsky|mussorgsky|rimsky-korsakov|borodin|faur\u00e9|faure|franck|bruckner|einaudi|yiruma|philip glass|max richter|ludovico)\b/i;
+/* songs that are all voice are their own acapella */
+const ALL_VOICE_ARTISTS = /\b(pentatonix|straight no chaser|home free|take 6|the king'?s singers|ladysmith black mambazo|sweet honey in the rock|the swingles|swingle singers|voces ?8|bobby mcferrin|rockapella|the real group|naturally 7|the persuasions|the flying pickets|tonic sol-?fa|the longest johns|chanticleer|fisk jubilee singers|the buffalo bills|peter hollens|mike tompkins|petra haden|le myst[e\u00e8]re des voix bulgares|the overtones|the barden bellas|the treblemakers|committed)\b/i;
+const ALL_VOICE_SONGS = /^(tom'?s diner\|suzanne vega|don'?t worry,? be happy\|bobby mcferrin|hide and seek\|imogen heap|woods\|bon iver|only you\|the flying pickets|homeless\|paul simon|our prayer\|the beach boys|it'?s so hard to say goodbye to yesterday\|boyz ii men|in the still of the nite\|boyz ii men)/i;
+function allVoice(title, artist) {
+  const t = (title || '').replace(/\s*[\(\[].*$/, '').trim();
+  return ALL_VOICE_ARTISTS.test(artist || '') || ALL_VOICE_SONGS.test(t + '|' + (artist || '')) || /\b(barbershop|gregorian chant|a cappella|acapella)\b/i.test(t);
+}
 function noVocals(title, artist) { return NO_VOCALS.test(title || '') || COMPOSERS.test((artist || '') + ' ' + (title || '')); }
 
 /* tune search */
@@ -1034,8 +1041,14 @@ async function findAcapella(title, artist) {
   $('acaResults').innerHTML = '';
   $('acaInfo').innerHTML = '<span style="color:var(--ink-faint)">Looking for a vocal only version</span>';
   let d = null;
+  const voiceOnly = allVoice(title, artist);
   try { d = await (await ytSearch(encodeURIComponent(title + ' ' + artist + ' acapella'))).json(); } catch (e) {}
-  const rows = (d && d.results ? d.results : []).filter(r => ACA_WORDS.test(decodeHtml(r.title)));
+  let rows = (d && d.results ? d.results : []).filter(r => ACA_WORDS.test(decodeHtml(r.title)) || (voiceOnly && !/live|reaction|tutorial|lesson|karaoke|instrumental/i.test(decodeHtml(r.title))));
+  if (!rows.length && voiceOnly) {
+    try { d = await (await ytSearch(encodeURIComponent(title + ' ' + artist))).json(); } catch (e) {}
+    rows = (d && d.results ? d.results : []).filter(r => !/live|reaction|tutorial|lesson|karaoke|instrumental/i.test(decodeHtml(r.title)));
+  }
+  if (voiceOnly && rows.length) log('ACAPELLA', title + ' is all voice, so the recording itself is the acapella');
   if (!rows.length) {
     $('acaTag').textContent = 'NONE FOUND';
     $('acaInfo').innerHTML = '<span style="color:var(--ink-faint)">No vocal only upload found for this song</span>';
@@ -2992,7 +3005,7 @@ async function autoFindVoice(targetBpm) {
       try { d = await (await fetch('/api/lyrics?title=' + encodeURIComponent(c.title) + '&artist=' + encodeURIComponent(c.artist))).json(); } catch (e) {}
       const lyr = d && d.results && d.results[0];
       if (!lyr) continue;
-      const vid = await autoVideo((c.query || c.title + ' ' + c.artist) + ' acapella', ACA_WORDS, c.title);
+      const vid = await autoVideo((c.query || c.title + ' ' + c.artist) + ' acapella', allVoice(c.title, c.artist) ? /^(?!.*(live|reaction|tutorial|instrumental))/i : ACA_WORDS, c.title);
       if (!vid) continue;
       return { c, lyr, vid };
     }
@@ -3006,7 +3019,7 @@ async function autoFindBeat(targetBpm) {
       const c = await autoPick('inst', targetBpm, spread);
       if (!c) break;
       autoMark(c);
-      const vid = await autoVideo((c.query || c.title + ' ' + c.artist) + ' instrumental', /instrumental|karaoke|no vocals|backing track/i, c.title);
+      const vid = await autoVideo((c.query || c.title + ' ' + c.artist) + ' instrumental', noVocals(c.title, c.artist) ? /^(?!.*(live|reaction|tutorial|karaoke))/i : /instrumental|karaoke|no vocals|backing track/i, c.title);
       if (vid) return { c, vid };
     }
   }
