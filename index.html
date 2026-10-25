@@ -698,7 +698,7 @@ function ratio() {
 /* the speed the voice really plays at: YouTube rounds speeds, so the lyrics and drift checks follow the rounded speed */
 function appliedRate() {
   const want = ratio();
-  if (aca && acaReady && acaPlayer && $('acaOn').checked) return nearestRate(want);
+  if (aca && acaReady && acaPlayer && $('acaOn').checked) return acaRateLocked || nearestRate(want);
   return want;
 }
 function bpmGap(bpm, other) {
@@ -1045,7 +1045,7 @@ function ensureAcaPlayer(cb) {
 
 let acaSearch = null;
 async function findAcapella(title, artist) {
-  aca = null; acaLoaded = null; acaRateSet = null;
+  aca = null; acaLoaded = null; acaRateSet = null; acaRateLocked = null; acaSeeks = [];
   pauseAca();
   $('acaTag').textContent = 'SEARCHING';
   $('acaResults').innerHTML = '';
@@ -1079,7 +1079,7 @@ async function findAcapella(title, artist) {
 
 function pickAca(r) {
   aca = { videoId: r.videoId, title: decodeHtml(r.title), channel: decodeHtml(r.channel) };
-  acaRateSet = null;
+  acaRateSet = null; acaRateLocked = null; acaSeeks = [];
   $('acaInfo').innerHTML = esc(aca.title) + '<div class="rs">' + esc(aca.channel) + '</div>';
   $('acaTag').textContent = 'LOADED';
   ensureAcaPlayer(() => {
@@ -1112,19 +1112,35 @@ function warmAca(at) {
     acaWarming = false;
   }, 5000);
 }
+/* some uploads refuse speed changes or buffer slowly; follow the speed they really play at, and stop chasing a stalled stream */
+let acaRateLocked = null, acaRateSetAt = 0, acaSeeks = [];
 function acaSeek(t) {
+  const nowMs = Date.now();
+  acaSeeks = acaSeeks.filter(x => nowMs - x < 12000);
+  if (acaSeeks.length >= 3) { acaGraceUntil = nowMs + 6000; acaSeeks = []; log('ACAPELLA', 'this upload is loading slowly, letting it catch up instead of jumping'); return; }
+  acaSeeks.push(nowMs);
   try { acaPlayer.seekTo(Math.max(0, t), true); } catch (e) {}
-  acaGraceUntil = Date.now() + 2000;
+  acaGraceUntil = nowMs + 2000;
 }
 
 function syncAca(tuneT) {
   if (!aca || !acaReady || !acaPlayer) return;
   const r = appliedRate();
+  if (!acaRateLocked && acaRateSet !== null && acaState === 1 && Date.now() - acaRateSetAt > 1500) {
+    let real = acaRateSet;
+    try { real = acaPlayer.getPlaybackRate(); } catch (e) {}
+    if (real && Math.abs(real - acaRateSet) > 0.01) {
+      acaRateLocked = real; acaRateSet = null; acaLastSync = 0;
+      $('acaTag').textContent = 'SPEED LOCKED ' + real.toFixed(2) + 'X';
+      log('ACAPELLA', 'this upload will not change speed, it plays at ' + real.toFixed(2) + 'x, pick another upload below to stretch it');
+      return;
+    }
+  }
   if (acaRateSet !== r) {
-    acaRateSet = r;
+    acaRateSet = r; acaRateSetAt = Date.now();
     try { acaPlayer.setPlaybackRate(r); } catch (e) {}
     const want = ratio();
-    $('acaTag').textContent = !$('stretchOn').checked ? 'ORIGINAL SPEED' : 'RATE ' + r.toFixed(2) + 'X' + (Math.abs(r - want) > 0.01 ? ' NEAR' : '');
+    $('acaTag').textContent = acaRateLocked ? 'SPEED LOCKED ' + r.toFixed(2) + 'X' : !$('stretchOn').checked ? 'ORIGINAL SPEED' : 'RATE ' + r.toFixed(2) + 'X' + (Math.abs(r - want) > 0.01 ? ' NEAR' : '');
   }
   if (waiting(tuneT)) {
     if (mode === 'auto' && autoState.on) {
@@ -2624,7 +2640,7 @@ async function replaySample(r) {
   if (r.aca) {
     aca = { videoId: r.aca.videoId, title: r.aca.title, channel: '' };
     $('acaInfo').innerHTML = esc(aca.title) + '<div class="rs">FROM ' + esc(r.name) + '</div>';
-    acaRateSet = null;
+    acaRateSet = null; acaRateLocked = null; acaSeeks = [];
     ensureAcaPlayer(() => { acaLoaded = aca.videoId; acaPlayer.cueVideoById(aca.videoId, 0); });
   } else { aca = null; pauseAca(); }
   renderSmashHeader();
