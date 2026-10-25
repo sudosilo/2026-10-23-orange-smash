@@ -442,6 +442,8 @@
 <div class="card hide c-samp" id="samplesCard">
   <div class="cardTitle"><span>My samples</span><span class="mono" id="sampCount"></span></div>
   <div id="sampWho" class="rs" style="margin-bottom:6px"></div>
+  <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><button class="seg" id="sampImport" style="flex:0 0 auto">IMPORT</button><span style="font-size:12px;color:var(--ink-faint);line-height:1.3">Pick a sample's .json file, plus its .webm sound file if you have it</span></div>
+  <input type="file" id="sampFile" accept=".json,application/json,.webm,audio/webm,audio/*" multiple class="hide">
   <div id="sampMsg" class="mono" style="font-size:12px;color:var(--ink-soft);min-height:16px;margin-bottom:4px"></div>
   <div id="sampList"><div class="sampRow"><span class="rs">Tap sample while a smash plays, tap again to stop and export</span></div></div>
 </div>
@@ -2233,6 +2235,37 @@ async function replaySample(r) {
   log('REPLAY', r.name + ' from ' + fmt(r.start) + (replayEnd !== null ? ' to ' + fmt(replayEnd) : ''));
 }
 renderSamples();
+
+/* import: bring back exported samples, the .json recipe plus its .webm sound if picked together */
+$('sampImport').addEventListener('click', () => { $('sampFile').value = ''; $('sampFile').click(); });
+$('sampFile').addEventListener('change', async () => {
+  const files = [...$('sampFile').files];
+  if (!files.length) return;
+  const sounds = {};
+  files.filter(f => !/\.json$/i.test(f.name)).forEach(f => { sounds[f.name.replace(/\.[^.]+$/, '')] = f; });
+  const recipes = files.filter(f => /\.json$/i.test(f.name));
+  if (!recipes.length) { log('IMPORT', 'pick the .json file that was exported with the sound, the recipe is what replays it'); return; }
+  let added = 0, skipped = 0, bad = 0;
+  for (const f of recipes) {
+    let r = null;
+    try { r = JSON.parse(await f.text()); } catch (e) {}
+    if (!r || typeof r !== 'object' || !r.tune || !r.tune.videoId || !/^[A-Za-z0-9_-]{6,20}$/.test(r.tune.videoId)) { bad++; continue; }
+    const base = f.name.replace(/\.json$/i, '');
+    r.name = String(r.name || base).slice(0, 60);
+    delete r.cloudId; delete r.audioPath; delete r.isPublic;
+    if (samples.some(x => x.name === r.name)) { skipped++; continue; }
+    r.savedAt = r.savedAt || Date.now();
+    r.seconds = typeof r.seconds === 'number' ? r.seconds : (typeof r.end === 'number' && typeof r.start === 'number' ? Math.round((r.end - r.start) * 10) / 10 : 0);
+    samples.unshift(r);
+    added++;
+    const snd = sounds[r.name] || sounds[base];
+    cloudSaveSample(r, snd || null);
+  }
+  if (samples.length > 40) samples.length = 40;
+  store('samples', samples);
+  renderSamples();
+  log('IMPORT', (added ? 'added ' + added + ' sample' + (added > 1 ? 's' : '') : 'nothing new added') + (skipped ? ', ' + skipped + ' already here' : '') + (bad ? ', ' + bad + ' file' + (bad > 1 ? 's were' : ' was') + ' not a sample' : ''));
+});
 
 /* ===== ARTIST INFO from MusicBrainz ===== */
 let infoSig = '', infoCache = recall('artistinfo') || {};
