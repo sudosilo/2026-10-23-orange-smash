@@ -197,6 +197,10 @@
   .helpText p { font-size: 13px; line-height: 1.55; margin: 0 0 10px; color: var(--ink-soft); }
   .helpText b { color: var(--ink); }
 
+  .c-multi { border-left-color: #4a5fc4; } .c-multi .cardTitle { color: #4a5fc4; }
+  .msRow { display:flex; align-items:center; gap:8px; padding:8px 0; border-top:1px solid var(--line, #ddd8cc); font-size:14px; }
+  .msRow .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .msRow label { display:flex; align-items:center; gap:4px; font:11px ui-monospace,Menlo,monospace; letter-spacing:1px; }
   .c-auto { border-left-color: #1f8a8a; } .c-auto .cardTitle { color: #1f8a8a; }
   .autoSide { padding: 6px 0; border-top: 1px solid #e6e2d9; font-size: 13px; }
   .autoPair { display: flex; gap: 6px; margin-top: 4px; }
@@ -255,6 +259,7 @@
   <button class="seg" data-mode="live">LIVE SMASH</button>
   <button class="seg" data-mode="auto">AUTOSMASH</button>
   <button class="seg" data-view="samples">SAMPLES</button>
+  <button class="seg" data-view="multi">MULTI SMASH</button>
 </div>
 
 <div id="mainView">
@@ -411,6 +416,16 @@
   <div id="stats"><div class="stat"><span style="color:var(--ink-faint)">Load words to count them</span><span></span></div></div>
   <div class="chorusText" id="chorusText"></div>
 </div>
+</div>
+
+<div class="card hide c-multi" id="multiCard">
+  <div class="cardTitle"><span>Multi smash</span><span class="mono" id="msTag">OFF</span></div>
+  <div style="font-size:13px;color:var(--ink-soft);line-height:1.45">Sign in with the same account on each phone and link them here. Every linked phone follows the smash. Check BEAT to play the instrumental on a phone, VOICE to play the acapella, or both.</div>
+  <label class="mono" style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:12px"><input type="checkbox" id="msLink"> LINK THIS PHONE</label>
+  <div style="display:flex;gap:6px;align-items:center;margin-top:8px"><input class="profIn" id="msName" placeholder="This phone's name" style="flex:1;margin:0"><button class="sbtn" id="msNameSave" style="flex:0 0 auto">Save</button></div>
+  <div id="msList" style="margin-top:10px"></div>
+  <div id="msMsg" class="mono" style="font-size:12px;color:var(--accent);margin-top:8px"></div>
+  <button class="sbtn go hide" id="msTapSound" style="width:100%;margin-top:8px">Tap to start sound on this phone</button>
 </div>
 
 <div class="card hide c-samp" id="samplesCard">
@@ -604,6 +619,8 @@ function setView(v) {
   $('mainView').classList.toggle('hide', v === 'samples');
   $('samplesCard').classList.toggle('hide', v !== 'samples');
   $('feedCard').classList.toggle('hide', v !== 'samples');
+  $('multiCard').classList.toggle('hide', v !== 'multi');
+  if (v === 'multi') { $('multiCard').classList.remove('shut'); msRender(); }
   if (v === 'samples') { $('samplesCard').classList.remove('shut'); $('feedCard').classList.remove('shut'); loadFeed(feedUser); }
   document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('on', b.getAttribute('data-view') === v));
   document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('on', !v && b.getAttribute('data-mode') === mode));
@@ -826,7 +843,9 @@ async function findWords() {
 $('wordsFind').addEventListener('click', findWords);
 $('wordsInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') findWords(); });
 
-function pickWords(r) {
+let wordsSrc = null;
+function pickWords(r, skipAcaSearch) {
+  wordsSrc = { title: r.title, artist: r.artist, album: r.album || null, durationSeconds: r.durationSeconds || null, synced: r.synced };
   const lines = parseLrc(r.synced);
   words = { title: r.title, artist: r.artist, lines, chorus: markChorus(lines), bpm: null };
   $('wordsResults').innerHTML = '';
@@ -839,7 +858,7 @@ function pickWords(r) {
   buildCueList(lines);
   setArmed(true);
   loadDropLog();
-  acaSearch = findAcapella(r.title, r.artist);
+  if (!skipAcaSearch) acaSearch = findAcapella(r.title, r.artist);
   if (r.bpm) { $('wordsBpm').value = r.bpm; words.bpm = r.bpm; renderRatio(); renderStats(words); }
   else lookupBpm(r.title, r.artist, 'wordsBpm').then(() => { words.bpm = parseFloat($('wordsBpm').value) || null; renderStats(words); });
   renderSmashHeader();
@@ -929,6 +948,7 @@ function smashTick() {
   else if (words) showLyrics(words.lines, (t - offsetSec) * rate);
   renderDropKey(t);
   syncAca(t);
+  msBeatVolume();
 }
 
 /* acapella: the vocal only upload of the words song, held to the same clock as the lyrics */
@@ -945,7 +965,7 @@ function ensureAcaPlayer(cb) {
       height: '78', width: '139',
       playerVars: { controls: 0, playsinline: 1, rel: 0, disablekb: 1, fs: 0, iv_load_policy: 3 },
       events: {
-        onReady: () => { acaReady = true; try { acaPlayer.setVolume(+$('acaVol').value); } catch (e) {} acaReadyQueue.splice(0).forEach(f => f()); },
+        onReady: () => { acaReady = true; try { acaPlayer.setVolume(voiceVol()); } catch (e) {} acaReadyQueue.splice(0).forEach(f => f()); },
         onStateChange: (e) => { acaState = e.data; },
         onError: (e) => { $('acaTag').textContent = 'BLOCKED'; log('ACAPELLA', 'this upload blocks embedded play, pick another below'); }
       }
@@ -1012,7 +1032,7 @@ function warmAca(at) {
   try { acaPlayer.mute(); acaPlayer.seekTo(Math.max(0, at), true); acaPlayer.playVideo(); } catch (e) {}
   setTimeout(() => {
     if (tok !== warmToken || !acaWarming) return;
-    try { acaPlayer.pauseVideo(); acaPlayer.seekTo(Math.max(0, at), true); acaPlayer.unMute(); acaPlayer.setVolume(+$('acaVol').value); } catch (e) {}
+    try { acaPlayer.pauseVideo(); acaPlayer.seekTo(Math.max(0, at), true); acaPlayer.unMute(); acaPlayer.setVolume(voiceVol()); } catch (e) {}
     acaWarming = false;
   }, 5000);
 }
@@ -1054,8 +1074,8 @@ function syncAca(tuneT) {
     }
     return;
   }
-  if (acaWarming) { acaWarming = false; try { acaPlayer.unMute(); acaPlayer.setVolume(+$('acaVol').value); } catch (e) {} }
-  if (mode === 'auto' && autoState.on) { try { if (acaPlayer.getVolume() === 0) { acaPlayer.unMute(); acaPlayer.setVolume(+$('acaVol').value); } } catch (e) {} }
+  if (acaWarming) { acaWarming = false; try { acaPlayer.unMute(); acaPlayer.setVolume(voiceVol()); } catch (e) {} }
+  if (mode === 'auto' && autoState.on) { try { if (acaPlayer.getVolume() === 0) { acaPlayer.unMute(); acaPlayer.setVolume(voiceVol()); } } catch (e) {} }
   const autoHold = mode === 'auto' && autoState.on && wantPlay;
   if (!$('acaOn').checked || playerState !== 1) {
     if (autoHold) { try { acaPlayer.setVolume(0); } catch (e) {} }
@@ -1077,7 +1097,7 @@ function syncAca(tuneT) {
   } catch (e) {}
 }
 
-$('acaVol').addEventListener('input', () => { try { if (acaPlayer && acaReady) acaPlayer.setVolume(+$('acaVol').value); } catch (e) {} });
+$('acaVol').addEventListener('input', () => { try { if (acaPlayer && acaReady) acaPlayer.setVolume(voiceVol()); } catch (e) {} });
 $('acaOn').addEventListener('change', () => {
   if (!$('acaOn').checked) pauseAca();
   else if (playerState === 1 && aca && acaReady) { try { acaPlayer.playVideo(); } catch (e) {} }
@@ -1210,7 +1230,7 @@ function fireDrop(at) {
   let t = at;
   try { t = player.getCurrentTime() || at; } catch (e) {}
   const start = cueT + Math.max(0, t - at) * appliedRate() + acaShift;
-  try { acaPlayer.unMute(); acaPlayer.setVolume(+$('acaVol').value); } catch (e) {}
+  try { acaPlayer.unMute(); acaPlayer.setVolume(voiceVol()); } catch (e) {}
   if (Math.abs(start - (cueT + acaShift)) > 0.3) acaSeek(start); else acaGraceUntil = Date.now() + 1500;
   try { acaPlayer.playVideo(); } catch (e) {}
   acaLastSync = Date.now();
@@ -1249,6 +1269,165 @@ $('restartBtn').addEventListener('click', () => {
     } catch (e) {}
   });
   log('RESTART', 'from the top' + (dropAt !== null ? ', voice drops at ' + dropAt.toFixed(3) + ' s' : ', tap drop on the beat'));
+});
+
+/* ===== MULTI SMASH: phones on one account share the smash, each plays its part ===== */
+let msDevId = recall('devid');
+if (!msDevId) { msDevId = Math.random().toString(36).slice(2, 10); store('devid', msDevId); }
+let msName = recall('devname') || ('Phone ' + msDevId.slice(0, 3).toUpperCase());
+let msRole = recall('devrole') || { beat: true, voice: true };
+let msChan = null, msPeers = {}, msOn = false, msDirector = false, msApplying = false, msStamp = 0, msLeader = '', msSendTimer = null, msBeatSet = null, msSeekGrace = 0, msCheckTimer = null;
+
+function voiceVol() { return msOn && !msRole.voice ? 0 : +$('acaVol').value; }
+function msBeatVolume() {
+  if (!player || !playerReady) return;
+  const want = msOn && !msRole.beat ? 0 : 100;
+  if (msBeatSet === want) return;
+  msBeatSet = want;
+  try { player.setVolume(want); if (want) player.unMute(); } catch (e) {}
+}
+function msVoiceVolume() { try { if (acaPlayer && acaReady && acaState === 1) acaPlayer.setVolume(voiceVol()); } catch (e) {} }
+
+function msSay(t) { $('msMsg').textContent = t || ''; }
+function msRender() {
+  $('msName').value = msName;
+  $('msLink').checked = msOn;
+  $('msTag').textContent = !msOn ? 'OFF' : Object.keys(msPeers).length + ' LINKED';
+  const list = $('msList');
+  if (!msOn) { list.innerHTML = ''; return; }
+  const ids = Object.keys(msPeers).sort((a, b) => (a === msDevId ? -1 : b === msDevId ? 1 : msPeers[a].name.localeCompare(msPeers[b].name)));
+  list.innerHTML = '';
+  ids.forEach(id => {
+    const p = msPeers[id];
+    const row = document.createElement('div');
+    row.className = 'msRow';
+    row.innerHTML = '<div class="nm">' + esc(p.name) + (id === msDevId ? ' <span class="rs">(this phone)</span>' : '') + (id === msLeader ? ' <span class="rs">directing</span>' : '') + '</div>' +
+      '<label><input type="checkbox" data-r="beat"' + (p.beat ? ' checked' : '') + '>BEAT</label>' +
+      '<label><input type="checkbox" data-r="voice"' + (p.voice ? ' checked' : '') + '>VOICE</label>';
+    row.querySelectorAll('input').forEach(cb => cb.addEventListener('change', () => {
+      const role = { beat: p.beat, voice: p.voice };
+      role[cb.getAttribute('data-r')] = cb.checked;
+      if (id === msDevId) msSetRole(role);
+      else if (msChan) msChan.send({ type: 'broadcast', event: 'role', payload: { id, beat: role.beat, voice: role.voice } });
+    }));
+    list.appendChild(row);
+  });
+}
+function msTrack() { if (msChan) msChan.track({ id: msDevId, name: msName, beat: msRole.beat, voice: msRole.voice }); }
+function msSetRole(role) {
+  msRole = { beat: !!role.beat, voice: !!role.voice };
+  store('devrole', msRole);
+  msBeatSet = null; msBeatVolume(); msVoiceVolume();
+  msTrack();
+}
+
+async function msJoin() {
+  if (!sbReady || !sbUser) { msOn = false; msRender(); msSay('Sign in first, from Profile in the menu, with the same account on every phone'); return; }
+  if (msChan) return;
+  msOn = true; msPeers = {};
+  msChan = sb.channel('multismash:' + sbUser.id, { config: { presence: { key: msDevId }, broadcast: { self: false } } });
+  msChan.on('presence', { event: 'sync' }, () => {
+    const st = msChan.presenceState();
+    msPeers = {};
+    Object.keys(st).forEach(k => { const m = st[k][0]; if (m && m.id) msPeers[m.id] = { name: m.name || 'Phone', beat: !!m.beat, voice: !!m.voice }; });
+    msRender();
+  });
+  msChan.on('broadcast', { event: 'role' }, ({ payload }) => { if (payload && payload.id === msDevId) { msSetRole(payload); msRender(); } });
+  msChan.on('broadcast', { event: 'state' }, ({ payload }) => msApply(payload));
+  msChan.on('broadcast', { event: 'hello' }, () => { if (msDirector) msSend(); });
+  msChan.subscribe((status) => {
+    if (status === 'SUBSCRIBED') { msTrack(); msChan.send({ type: 'broadcast', event: 'hello', payload: { id: msDevId } }); msSay('Linked. Pick songs and play on any phone, the rest follow'); }
+    else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') msSay('Could not link, check the connection and try again');
+  });
+  store('mslink', true);
+  msBeatSet = null;
+  msRender();
+}
+function msLeave() {
+  if (msChan) { try { sb.removeChannel(msChan); } catch (e) {} }
+  msChan = null; msOn = false; msPeers = {}; msDirector = false; msLeader = '';
+  store('mslink', false);
+  msBeatSet = null; msBeatVolume(); msVoiceVolume();
+  $('msTapSound').classList.add('hide');
+  msSay(''); msRender();
+}
+$('msLink').addEventListener('change', () => { if ($('msLink').checked) msJoin(); else msLeave(); });
+$('msNameSave').addEventListener('click', () => { msName = $('msName').value.trim().slice(0, 24) || msName; store('devname', msName); msTrack(); msRender(); });
+
+function msTunePos() { try { return player && playerReady ? player.getCurrentTime() || 0 : 0; } catch (e) { return 0; } }
+function msState() {
+  return {
+    from: msDevId, name: msName, stamp: msStamp,
+    tune: tune ? { videoId: tune.videoId, title: tune.title, channel: tune.channel || '' } : null,
+    words: wordsSrc, aca: aca ? { videoId: aca.videoId, title: aca.title, channel: aca.channel } : null,
+    tuneBpm: parseFloat($('tuneBpm').value) || null, wordsBpm: parseFloat($('wordsBpm').value) || null,
+    stretch: $('stretchOn').checked, fold, cueT, acaShift, dropAt, acaOn: $('acaOn').checked,
+    playing: wantPlay && playerState !== 2, pos: msTunePos(), at: now()
+  };
+}
+function msSend() {
+  if (!msChan || !msOn || msApplying) return;
+  msDirector = true; msLeader = msDevId;
+  msStamp = Math.max(msStamp + 1, Date.now());
+  msChan.send({ type: 'broadcast', event: 'state', payload: msState() });
+}
+function msSoon(ms) { if (!msOn || msApplying) return; clearTimeout(msSendTimer); msSendTimer = setTimeout(msSend, ms || 350); }
+/* any tap or change on the smash controls makes this phone the director */
+['click', 'change'].forEach(ev => $('mainView').addEventListener(ev, (e) => { if (e.isTrusted) msSoon(ev === 'click' ? 600 : 350); }, true));
+setInterval(() => { if (msOn && msDirector && wantPlay) msSend(); }, 2000);
+
+async function msApply(st) {
+  if (!st || st.from === msDevId || st.stamp < msStamp) return;
+  msStamp = st.stamp; msDirector = false; msLeader = st.from;
+  msApplying = true;
+  try {
+    if (view === 'samples') setView('multi');
+    if (!isSmashy()) setMode('smash');
+    if (st.tune && (!tune || tune.videoId !== st.tune.videoId)) pickTune(Object.assign({}, st.tune, { bpm: st.tuneBpm }));
+    if (st.words && (!wordsSrc || wordsSrc.title !== st.words.title || wordsSrc.artist !== st.words.artist)) pickWords(Object.assign({}, st.words, { bpm: st.wordsBpm }), true);
+    if (st.aca && (!aca || aca.videoId !== st.aca.videoId)) pickAca(st.aca);
+    if (st.tuneBpm && parseFloat($('tuneBpm').value) !== st.tuneBpm) $('tuneBpm').value = st.tuneBpm;
+    if (st.wordsBpm && parseFloat($('wordsBpm').value) !== st.wordsBpm) { $('wordsBpm').value = st.wordsBpm; if (words) words.bpm = st.wordsBpm; }
+    $('stretchOn').checked = !!st.stretch;
+    $('acaOn').checked = st.acaOn !== false;
+    if (fold !== st.fold) { fold = st.fold || 1; document.querySelectorAll('[data-fold]').forEach(x => x.classList.toggle('on', parseFloat(x.getAttribute('data-fold')) === fold)); }
+    if (cueT !== st.cueT) { cueT = st.cueT || 0; $('cueSel').value = String(cueT); acaParkedAt = null; acaLastSync = 0; lastIdx = -2; }
+    if (acaShift !== st.acaShift) { acaShift = st.acaShift || 0; renderAs(); acaParkedAt = null; }
+    if (dropAt !== st.dropAt) setDropAt(st.dropAt, null);
+    renderRatio(); renderSmashHeader();
+    if (tune) {
+      if (st.playing) {
+        const want = st.pos + Math.max(0, now() - st.at) / 1000;
+        wantPlay = true;
+        ensurePlayer(() => {
+          try {
+            if (loadedVideo !== tune.videoId) { loadedVideo = tune.videoId; player.loadVideoById(tune.videoId, want); msSeekGrace = Date.now() + 3000; }
+            else {
+              const cur = player.getCurrentTime() || 0;
+              if (Date.now() > msSeekGrace && Math.abs(cur - want) > 0.2) { player.seekTo(want, true); msSeekGrace = Date.now() + 2500; }
+              if (playerState !== 1 && playerState !== 3) player.playVideo();
+            }
+          } catch (e) {}
+          msBeatSet = null; msBeatVolume();
+          clearTimeout(msCheckTimer);
+          msCheckTimer = setTimeout(() => { if (wantPlay && playerState !== 1) $('msTapSound').classList.remove('hide'); }, 2500);
+        });
+      } else if (wantPlay || playerState === 1) {
+        pauseTune();
+        try { player.seekTo(st.pos, true); } catch (e) {}
+      }
+    }
+  } catch (e) {}
+  msApplying = false;
+  if (view === 'multi') msRender();
+}
+$('msTapSound').addEventListener('click', () => {
+  $('msTapSound').classList.add('hide');
+  wantPlay = true;
+  try { player.playVideo(); } catch (e) {}
+  try { if (acaPlayer && acaReady) { acaPlayer.unMute(); acaPlayer.setVolume(voiceVol()); } } catch (e) {}
+  msBeatSet = null; msBeatVolume();
+  if (msChan) msChan.send({ type: 'broadcast', event: 'hello', payload: { id: msDevId } });
 });
 
 /* ===== LIVE KARAOKE MODE ===== */
@@ -2040,7 +2219,7 @@ async function initSupabase() {
   sbReady = true;
   const { data } = await sb.auth.getSession();
   sbUser = data && data.session ? data.session.user : null;
-  sb.auth.onAuthStateChange((_ev, session) => { sbUser = session ? session.user : null; renderProfile(); renderSamples(); if (sbUser) pullCloudSamples(); });
+  sb.auth.onAuthStateChange((_ev, session) => { sbUser = session ? session.user : null; renderProfile(); renderSamples(); if (sbUser) pullCloudSamples(); if (sbUser && recall('mslink') && !msChan) msJoin(); if (!sbUser && msChan) msLeave(); });
   renderProfile();
   renderSamples();
   if (sbUser) pullCloudSamples();
