@@ -8,7 +8,9 @@ main() {
   echo "deb https://packages-cf.termux.dev/apt/termux-main stable main" > "$PREFIX/etc/apt/sources.list"
   rm -rf "$PREFIX/etc/termux/chosen_mirrors" "$PREFIX/etc/termux/mirrors/default" 2>/dev/null
   dpkg --configure -a </dev/null 2>/dev/null
-  until apt-get update </dev/null && apt-get install -y -o Dpkg::Options::=--force-confold yt-dlp jq curl git </dev/null; do
+  PKGS="yt-dlp jq curl git"; [ "$MODE" = "energy" ] && PKGS="$PKGS ffmpeg"
+  [ "$MODE" = "energy" ] && apt-get update </dev/null && apt-get -y -o Dpkg::Options::=--force-confold upgrade </dev/null
+  until apt-get update </dev/null && apt-get install -y -o Dpkg::Options::=--force-confold $PKGS </dev/null; do
     echo "install failed, trying again in 30 s"; sleep 30; dpkg --configure -a </dev/null 2>/dev/null
   done
   until [ -d 2026-10-23-orange-smash/.git ]; do
@@ -17,6 +19,10 @@ main() {
   cd 2026-10-23-orange-smash && git pull
   pwd
   termux-wake-lock 2>/dev/null
+  if [ "$MODE" = "energy" ]; then
+    # map every saved instrumental, then check for new ones every 30 minutes
+    while true; do bash tools/energy-map.sh </dev/null; echo "checking for new beats in 30 minutes"; sleep 1800; done
+  fi
   until bash tools/seed-cache.sh "$MODE" </dev/null && ! grep -q . "$HOME/.smash-seed/stopped" 2>/dev/null; do
     echo "seed paused, starting again in 10 minutes"; sleep 600
   done

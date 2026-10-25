@@ -199,6 +199,7 @@
   .helpText p { font-size: 13px; line-height: 1.55; margin: 0 0 10px; color: var(--ink-soft); }
   .helpText b { color: var(--ink); }
 
+  .c-sugg { border-left-color: #2a7f6f; } .c-sugg .cardTitle { color: #2a7f6f; }
   .c-loop { border-left-color: #8a6d1f; } .c-loop .cardTitle { color: #8a6d1f; }
   .c-multi { border-left-color: #4a5fc4; } .c-multi .cardTitle { color: #4a5fc4; }
   .msRow { display:flex; align-items:center; gap:8px; padding:8px 0; border-top:1px solid var(--line, #ddd8cc); font-size:14px; }
@@ -356,6 +357,13 @@
     <div class="toggleRow"><span>Snap to the beat</span><input type="checkbox" id="snapOn" checked></div>
     <div class="toggleRow"><span>Snap size</span><span class="ctl"><button class="seg" data-snap="0.5">HALF</button><button class="seg on" data-snap="1">BEAT</button><button class="seg" data-snap="4">BAR</button></span></div>
     <div class="toggleRow"><span>Beat one</span><span class="ctl"><button class="seg" data-ph="-0.02">-</button><span class="mono readout" id="phaseVal">0.00 s</span><button class="seg" data-ph="0.02">+</button><button class="seg" id="beatOneBtn">SET</button></span></div>
+  </div>
+
+  <div class="card c-sugg">
+    <div class="cardTitle"><span>Suggest</span><span class="mono" id="sgMap">NO BEAT</span></div>
+    <div class="btnRow" style="margin-top:0"><button class="sbtn go" id="sgDrop">Suggest a drop</button><button class="sbtn" id="sgVoices">Find voices for this beat</button></div>
+    <div id="sgMsg" style="font-size:12px;color:var(--ink-faint);line-height:1.4;margin-top:6px">Scores every start line and bar for the picked beat and voice: lines landing on the beat, singing over the quiet spots of the beat, the beat filling the gaps, and the voice fitting before the beat ends.</div>
+    <div id="sgList" style="margin-top:6px"></div>
   </div>
 
   <div class="card c-loop">
@@ -859,6 +867,7 @@ $('tuneInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') findT
 
 function pickTune(t) {
   tune = t;
+  loadBeatMap(t.videoId);
   loopCarry = 0; voiceLoopIdx = -1;
   store('tune', t);
   loadPhase();
@@ -1341,6 +1350,147 @@ $('restartBtn').addEventListener('click', () => {
   });
   log('RESTART', 'from the top' + (dropAt !== null ? ', voice drops at ' + dropAt.toFixed(3) + ' s' : ', tap drop on the beat'));
 });
+
+/* ===== SUGGEST: score start lines and drop bars from the lyrics, the BPM, and the beat's loudness map ===== */
+let beatMap = null, beatMapFor = null;
+async function loadBeatMap(vid) {
+  beatMap = null; beatMapFor = vid;
+  $('sgMap').textContent = 'CHECKING';
+  let d = null;
+  try { d = await (await fetch('/api/energy?vid=' + encodeURIComponent(vid))).json(); } catch (e) {}
+  if (beatMapFor !== vid) return;
+  if (d && Array.isArray(d.total) && Array.isArray(d.voice)) { beatMap = prepMap(d); $('sgMap').textContent = 'BEAT MAPPED'; }
+  else $('sgMap').textContent = d && d.failed ? 'BEAT CANNOT BE MAPPED' : 'BEAT MAP QUEUED';
+}
+function zs(a) {
+  const v = a.filter(x => x > -100), m = v.reduce((s, x) => s + x, 0) / (v.length || 1);
+  const sd = Math.sqrt(v.reduce((s, x) => s + (x - m) * (x - m), 0) / (v.length || 1)) || 1;
+  return a.map(x => x > -100 ? (x - m) / sd : -3);
+}
+function prepMap(d) { return { step: d.step, dur: d.dur, tz: zs(d.total), vz: zs(d.voice) }; }
+function mapAvg(arr, a, b) {
+  const st = beatMap.step, i0 = Math.max(0, Math.floor(a / st)), i1 = Math.min(arr.length - 1, Math.floor(b / st));
+  if (i1 < i0) return null;
+  let s = 0; for (let i = i0; i <= i1; i++) s += arr[i];
+  return s / (i1 - i0 + 1);
+}
+/* when each line is being sung, from the timed lyrics: until the next line, or about a third of a second a word */
+function sungSpans(lines) {
+  const sung = lines.filter(l => l.text);
+  return sung.map((l, i) => {
+    const next = i + 1 < sung.length ? sung[i + 1].t : l.t + 4;
+    return { t: l.t, end: Math.min(next, l.t + Math.max(1.2, wordCount(l.text) * 0.34)), chorus: !!l.chorus, text: l.text };
+  });
+}
+function scoreSmash(lines, tb, rate, phase, dur, map) {
+  const beat = 60 / tb, bar = beat * 4;
+  const spans = sungSpans(lines);
+  if (spans.length < 2) return [];
+  const cues = spans.filter((sp, i) => i === 0 || sp.t - spans[i - 1].end > 2 || (sp.chorus && !spans[i - 1].chorus)).slice(0, 14);
+  const out = [];
+  cues.forEach(cue => {
+    const rest = spans.filter(sp => sp.t >= cue.t && sp.t < cue.t + 120);
+    const lenBeat = (rest[rest.length - 1].end - cue.t) / rate;
+    /* lines that start on a beat, with extra credit on bar lines; the drop sits on a bar so this depends only on the start line */
+    let onBeat = 0, onBar = 0;
+    rest.forEach(sp => {
+      const rel = (sp.t - cue.t) / rate / beat, frac = Math.abs(rel - Math.round(rel));
+      if (frac < 0.12) { onBeat++; if (Math.round(rel) % 4 === 0) onBar++; }
+    });
+    const timing = onBeat / rest.length + 0.5 * onBar / rest.length;
+    for (let k = 1; ; k++) {
+      const drop = phase + k * bar;
+      if (drop > dur - 20) break;
+      const fit = drop + lenBeat <= dur ? 0 : -Math.min(1.5, (drop + lenBeat - dur) / 30);
+      const bars = k;
+      const intro = bars >= 4 && bars <= 24 ? 0.3 - Math.abs(bars - 8) * 0.01 : -0.2;
+      let clash = null, fill = null, quiet = null;
+      if (map) {
+        let cs = 0, cn = 0, fs = 0, fn = 0, q = 0;
+        rest.forEach((sp, i) => {
+          const a = drop + (sp.t - cue.t) / rate, b = drop + (sp.end - cue.t) / rate;
+          if (b > map.dur) return;
+          const v = mapAvg(map.vz, a, b); if (v !== null) { cs += v; cn++; if (v < 0) q++; }
+          const nx = rest[i + 1];
+          if (nx) {
+            const ga = b, gb = drop + (nx.t - cue.t) / rate;
+            if (gb - ga > 1) { const t = mapAvg(map.tz, ga, gb); if (t !== null) { fs += t; fn++; } }
+          }
+        });
+        clash = cn ? cs / cn : 0; fill = fn ? fs / fn : 0; quiet = cn ? q / cn : 0;
+      }
+      const score = 2 * timing + fit + intro + (map ? (-clash * 1.2 + fill * 0.6) : 0);
+      out.push({ cueT: cue.t, text: cue.text, drop: Math.round(drop * 1000) / 1000, bar: k + 1, score, timing: onBeat / rest.length, quiet, fit });
+    }
+  });
+  out.sort((a, b) => b.score - a.score);
+  /* keep the best few with different start lines or drops far apart */
+  const pick = [];
+  for (const o of out) { if (pick.every(p => p.cueT !== o.cueT || Math.abs(p.drop - o.drop) > 8)) pick.push(o); if (pick.length >= 4) break; }
+  return pick;
+}
+function beatDur() { try { const d = player && playerReady ? player.getDuration() : 0; if (d > 0) return d; } catch (e) {} return beatMap ? beatMap.dur : 240; }
+function sgRow(o, extra, onUse) {
+  const row = document.createElement('div');
+  row.className = 'sampRow';
+  row.innerHTML = '<div class="rt"><div>' + (extra ? esc(extra) + '<br>' : '') + 'Drop ' + o.drop.toFixed(3) + ' s, bar ' + o.bar + ', from "' + esc(o.text.slice(0, 48)) + '"</div><div class="rs">' +
+    Math.round(o.timing * 100) + '% of lines on the beat' + (o.quiet !== null ? ', ' + Math.round(o.quiet * 100) + '% sung over quiet spots' : '') + (o.fit < 0 ? ', runs past the end of the beat' : '') + '</div></div>';
+  const use = document.createElement('button'); use.className = 'seg'; use.textContent = 'USE';
+  use.addEventListener('click', onUse);
+  row.appendChild(use);
+  return row;
+}
+function applySuggestion(o) {
+  cueT = o.cueT; $('cueSel').value = String(o.cueT); acaParkedAt = null; acaLastSync = 0; lastIdx = -2;
+  setDropAt(o.drop, 'suggested');
+  log('SUGGEST', 'start line and drop set, tap FROM THE TOP to hear it');
+  if (typeof msSoon === 'function') msSoon(300);
+  if (typeof rmSoon === 'function') rmSoon(300);
+}
+$('sgDrop').addEventListener('click', () => {
+  const tb = parseFloat($('tuneBpm').value), wb = parseFloat($('wordsBpm').value);
+  if (!tune || !(tb > 0)) { $('sgMsg').textContent = 'Pick an instrumental with a BPM first'; return; }
+  if (!words || !words.lines.length) { $('sgMsg').textContent = 'Pick an acapella with timed lyrics first'; return; }
+  const rate = $('stretchOn').checked && wb > 0 ? appliedRate() : 1;
+  const res = scoreSmash(words.lines, tb, rate, gridPhase, beatDur(), beatMap);
+  $('sgList').innerHTML = '';
+  if (!res.length) { $('sgMsg').textContent = 'Not enough timed lines to score'; return; }
+  let note = beatMap ? 'Using the beat map, the quiet spots count.' : 'No beat map yet, so this is timing and length only. The phones add the map.';
+  if (wb > 0 && $('stretchOn').checked) { const want = ratio(); if (Math.abs(rate - want) / want > 0.015) note += ' The voice plays at ' + rate.toFixed(2) + 'x but needs ' + want.toFixed(3) + 'x, so it will drift. A closer BPM pair keeps it tight.'; }
+  if (gridPhase === 0) note += ' Set beat one in the Snap card for better bar lines.';
+  $('sgMsg').textContent = note;
+  res.forEach(o => $('sgList').appendChild(sgRow(o, null, () => applySuggestion(o))));
+});
+$('sgVoices').addEventListener('click', async () => {
+  const tb = parseFloat($('tuneBpm').value);
+  if (!tune || !(tb > 0)) { $('sgMsg').textContent = 'Pick an instrumental with a BPM first'; return; }
+  $('sgMsg').textContent = 'Looking through saved acapellas near ' + Math.round(tb) + ' BPM';
+  $('sgList').innerHTML = '';
+  let d = null;
+  try { d = await (await fetch('/api/auto-pick?tag=any&bpm=' + tb + '&spread=' + Math.max(2, Math.round(tb * 0.02)) + '&cached=1&kind=aca&n=10')).json(); } catch (e) {}
+  const picks = d && d.picks ? d.picks : [];
+  if (!picks.length) { $('sgMsg').textContent = 'No saved acapellas close enough to ' + Math.round(tb) + ' BPM yet'; return; }
+  const scored = [];
+  await Promise.all(picks.map(async (pk) => {
+    let l = null;
+    try { l = await (await fetch('/api/lyrics?title=' + encodeURIComponent(pk.title) + '&artist=' + encodeURIComponent(pk.artist))).json(); } catch (e) {}
+    const row = l && l.results && l.results[0];
+    if (!row || !row.synced) return;
+    const lines = parseLrc(row.synced); markChorus(lines);
+    const want = tb / (pk.bpm * pk.fold), rate = $('stretchOn').checked ? nearestRate(want) : 1;
+    const best = scoreSmash(lines, tb, rate, gridPhase, beatDur(), beatMap)[0];
+    if (best) scored.push({ pk, row, best });
+  }));
+  scored.sort((a, b) => b.best.score - a.best.score);
+  if (!scored.length) { $('sgMsg').textContent = 'Found songs at that tempo, but none with timed lyrics'; return; }
+  $('sgMsg').textContent = 'Best voices for this beat from your saved songs' + (beatMap ? ', scored on the beat map' : ', scored on timing only until the beat is mapped');
+  scored.slice(0, 6).forEach(x => $('sgList').appendChild(sgRow(x.best, x.pk.title + ' / ' + x.pk.artist + ' / ' + Math.round(x.pk.bpm) + ' BPM' + (x.pk.fold !== 1 ? (x.pk.fold === 2 ? ' at double' : ' at half') : ''), () => {
+    fold = x.pk.fold || 1; document.querySelectorAll('[data-fold]').forEach(b => b.classList.toggle('on', parseFloat(b.getAttribute('data-fold')) === fold));
+    pickWords(Object.assign({}, x.row, { bpm: x.pk.bpm }));
+    applySuggestion(x.best);
+  })));
+});
+if (tune) loadBeatMap(tune.videoId);
 
 /* loops: the beat repeats a stretch of bars, the voice repeats from its start line */
 let loopBeat = false, loopBars = 4, loopA = 0, loopCarry = 0, loopWrapFor = null, loopVoice = false, voiceBars = 4, voiceLoopIdx = -1;

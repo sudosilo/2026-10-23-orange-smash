@@ -32,6 +32,10 @@
     {
       "source": "/api/auto-pick",
       "destination": "https://offset-listener.vercel.app/api/auto-pick"
+    },
+    {
+      "source": "/api/energy",
+      "destination": "https://offset-listener.vercel.app/api/energy"
     }
   ],
   "headers": [
