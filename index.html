@@ -901,8 +901,8 @@ function ensurePlayer(cb) {
       playerVars: { controls: 0, playsinline: 1, rel: 0, disablekb: 1, fs: 0, iv_load_policy: 3 },
       events: {
         onReady: () => { playerReady = true; readyQueue.splice(0).forEach(f => f()); },
-        onStateChange: (e) => { playerState = e.data; renderPlayKey(); if (view === 'samples') { renderSamples(); paintFeedPlay(); } if (e.data === 0) { wantPlay = false; replayingName = null; log('END', 'tune finished'); } },
-        onError: (e) => { log('INSTRUMENTAL', 'this upload blocks embedded play, error ' + (e && e.data) + ', pick another'); wantPlay = false; renderPlayKey(); }
+        onStateChange: (e) => { if (e.target !== player) { twinState = e.data; return; } playerState = e.data; renderPlayKey(); if (view === 'samples') { renderSamples(); paintFeedPlay(); } if (e.data === 0) { wantPlay = false; replayingName = null; log('END', 'tune finished'); } },
+        onError: (e) => { if (e.target !== player) return; log('INSTRUMENTAL', 'this upload blocks embedded play, error ' + (e && e.data) + ', pick another'); wantPlay = false; renderPlayKey(); }
       }
     });
     if (cb) readyQueue.push(cb);
@@ -919,7 +919,7 @@ function loadTune(autoplay) {
     } else if (autoplay) player.playVideo();
   });
 }
-function pauseTune() { wantPlay = false; try { if (player && player.pauseVideo) player.pauseVideo(); } catch (e) {} pauseAca(); renderPlayKey(); }
+function pauseTune() { wantPlay = false; try { if (player && player.pauseVideo) player.pauseVideo(); } catch (e) {} try { if (twin && twinReady) twin.pauseVideo(); } catch (e) {} twinArmedFor = null; pauseAca(); renderPlayKey(); }
 const ICON_PLAY = '<svg viewBox="0 0 24 24"><path d="M7 5v14l12-7z"/></svg>';
 const ICON_PAUSE = '<svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>';
 function renderPlayKey() {
@@ -1316,7 +1316,7 @@ function loopStartFromNow() {
   loopA = Math.round(loopA * 1000) / 1000;
 }
 function loopWrap(B) {
-  loopWrapFor = null;
+  loopWrapFor = null; twinArmedFor = null;
   if (!loopBeat || playerState !== 1) return;
   try { player.seekTo(loopA, true); } catch (e) {}
   loopCarry += B - loopA;
@@ -1325,12 +1325,81 @@ function loopTick(t) {
   if (!loopBeat || playerState !== 1) return;
   const B = loopEnd();
   if (B === null || B <= loopA) return;
-  if (t > B + 0.5) { loopCarry += t - loopA; try { player.seekTo(loopA, true); } catch (e) {} return; }
-  if (loopWrapFor === null && B - t < 0.3) { loopWrapFor = B; setTimeout(() => loopWrap(B), Math.max(0, (B - t) * 1000)); }
+  if (t > B + 0.5) { loopCarry += t - loopA; twinArmedFor = null; try { player.seekTo(loopA, true); } catch (e) {} return; }
+  const L = B - loopA, lead = Math.min(1.5, loopA);
+  if (lead >= 0.3 && twin && twinReady && twinArmedFor !== B && B - t < lead && B - t > 0.35) armTwin(B, t, L);
+  if (loopWrapFor === null && B - t < 0.3) {
+    loopWrapFor = B;
+    const ms = Math.max(0, (B - t) * 1000);
+    if (twinArmedFor === B) setTimeout(() => crossWrap(B), Math.max(0, ms - 60));
+    else setTimeout(() => loopWrap(B), ms);
+  }
 }
+/* a second, silent copy of the beat runs one loop behind, so the wrap is a quick crossfade instead of a seek */
+let twin = null, twinReady = false, twinState = -1, twinVideo = null, twinArmedFor = null;
+function ensureTwin() {
+  if (twin) return;
+  whenYouTubeReady(() => {
+    if (twin) return;
+    const box = document.createElement('div');
+    box.style.cssText = 'position:fixed;left:-500px;top:0;width:139px;height:78px;overflow:hidden;';
+    box.innerHTML = '<div id="tuneTwin"></div>';
+    document.body.appendChild(box);
+    twin = new YT.Player('tuneTwin', {
+      height: '78', width: '139',
+      playerVars: { controls: 0, playsinline: 1, rel: 0, disablekb: 1, fs: 0, iv_load_policy: 3 },
+      events: {
+        onReady: () => { twinReady = true; try { twin.setVolume(0); if (tune) { twinVideo = tune.videoId; twin.cueVideoById(tune.videoId, loopA); } } catch (e) {} },
+        onStateChange: (e) => { if (e.target !== player) { twinState = e.data; return; } playerState = e.data; renderPlayKey(); },
+        onError: () => {}
+      }
+    });
+  });
+}
+function beatVolTarget() { return msOn && !msRole.beat ? 0 : 100; }
+function armTwin(B, t, L) {
+  if (!tune) return;
+  twinArmedFor = B;
+  const at = Math.max(0, t - L);
+  try {
+    twin.setVolume(0); twin.unMute();
+    if (twinVideo !== tune.videoId) { twinVideo = tune.videoId; twin.loadVideoById(tune.videoId, at); }
+    else { twin.seekTo(at, true); twin.playVideo(); }
+  } catch (e) {}
+  /* line the silent copy up with the beat while nobody can hear it */
+  [450, 900].forEach(d => setTimeout(() => {
+    if (twinArmedFor !== B || twinState !== 1) return;
+    try {
+      const want = (player.getCurrentTime() || 0) - L, have = twin.getCurrentTime() || 0;
+      if (Math.abs(have - want) > 0.05 && B - (player.getCurrentTime() || 0) > 0.5) twin.seekTo(want + 0.05, true);
+    } catch (e) {}
+  }, d));
+}
+function crossWrap(B) {
+  loopWrapFor = null;
+  if (!loopBeat || playerState !== 1) { twinArmedFor = null; return; }
+  if (twinArmedFor !== B || twinState !== 1) { twinArmedFor = null; loopWrap(B); return; }
+  twinArmedFor = null;
+  const old = player, vol = beatVolTarget();
+  player = twin; twin = old;
+  twinState = 1; playerState = 1;
+  loopCarry += B - loopA;
+  msBeatSet = vol;
+  let k = 0;
+  const step = () => {
+    k++;
+    const f = Math.min(1, k / 6);
+    try { player.setVolume(Math.round(vol * f)); old.setVolume(Math.round(vol * (1 - f))); } catch (e) {}
+    if (f < 1) setTimeout(step, 20);
+    else setTimeout(() => { try { old.pauseVideo(); old.setVolume(0); } catch (e) {} }, 40);
+  };
+  step();
+}
+
 $('loopBeatOn').addEventListener('change', () => {
   loopBeat = $('loopBeatOn').checked;
   if (loopBeat) {
+    ensureTwin();
     if (!barLen()) log('LOOP', 'set the instrumental BPM so the loop knows how long a bar is');
     if (playerState === 1 || loopA === 0) loopStartFromNow();
     log('LOOP', 'beat loops ' + loopBars + ' bars from ' + fmtTenth(loopA));
