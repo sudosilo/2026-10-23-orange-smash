@@ -194,7 +194,8 @@
   .c-ink { border-left-color: var(--ink); } .c-ink .cardTitle { color: var(--ink); }
 
   #helpShade { position: fixed; inset: 0; background: rgba(34,37,42,.35); z-index: 49; }
-  #helpCard { position: fixed; top: 12px; bottom: 12px; left: 12px; right: 12px; max-width: 480px; margin: 0 auto; overflow-y: auto; z-index: 50; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+  html.edge #helpCard, html.edge #profileCard { top: 46px; bottom: 30px; }
+  #helpCard, #profileCard { position: fixed; top: calc(12px + env(safe-area-inset-top, 0px)); bottom: calc(12px + env(safe-area-inset-bottom, 0px)); left: 12px; right: 12px; max-width: 480px; margin: 0 auto; overflow-y: auto; z-index: 50; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
   .helpText p { font-size: 13px; line-height: 1.55; margin: 0 0 10px; color: var(--ink-soft); }
   .helpText b { color: var(--ink); }
 
@@ -238,12 +239,14 @@
     <p><b>Autosmash</b> runs by itself. Pick a BPM, a genre and decade for the beat, and a genre and decade for the voice, then tap Start. It finds an instrumental at that tempo, drops in an acapella from the other genre on the bar, and when that voice finishes the next one comes in. Next voice and Next beat skip ahead.</p>
     <p><b>Samples</b> records whatever is playing. Tap the sample bar to start and again to stop. It saves the sound plus a recipe that rebuilds the smash, and REPLAY plays it back. Signed in, samples go to your profile and show up on every phone.</p>
     <p><b>Artist info</b> pulls the band, members, genres and albums for anyone on screen. Tap an album to see its tracks and use any track as the acapella or the instrumental.</p>
+    <p><b>Loops</b> repeat a few bars of the instrumental from a start point, or the first few bars of the voice after the drop. They live in the Loops card in Smash.</p>
+    <p><b>Multi smash</b> links your own phones on one account. Each phone plays the beat, the voice, or both, and they all follow the same smash. <b>Band room</b> takes a room code so you can smash with someone on another account, one person running the beat and the other the voice. Stomp box instruments like Tapperator can join the same code and play on the same clock.</p>
     <p>Tap any card title to fold it away.</p>
   </div>
 </div>
 
 <div class="card hide c-ink" id="profileCard">
-  <div class="cardTitle"><span>Profile</span><span class="mono" id="profTag">SUPABASE</span></div>
+  <div class="cardTitle"><span>Profile <span class="mono" id="profTag" style="font-size:10px;margin-left:6px">SUPABASE</span></span><button class="seg" id="profClose">CLOSE</button></div>
   <div id="profBody"></div>
   <div class="infoRow" style="margin-top:14px"><b>Your YouTube key</b></div>
   <div style="font-size:13px;color:var(--ink-soft);line-height:1.45">Over 1,400 songs are already saved on the server, and searching them is free, so you can skip this. The shared key runs out after about 100 new song searches a day for everyone. Adding your own key gives you about 100 more new searches a day of your own. Every new song you find gets saved for everyone too.</div>
@@ -2593,7 +2596,7 @@ document.querySelectorAll('#menu a').forEach(a => a.addEventListener('click', (e
   $('menu').classList.remove('open');
   const go = a.getAttribute('data-go');
   if (go === 'help') { showHelp(true); return; }
-  if (go === 'profile') { $('profileCard').classList.toggle('hide'); renderProfile(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  if (go === 'profile') { showProfile(true); return; }
   const el = $(go);
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }));
@@ -2866,21 +2869,29 @@ async function toggleThread(sampleId, box, keepOpen) {
 $('feedAll').addEventListener('click', () => loadFeed(null));
 $('feedRefresh').addEventListener('click', () => loadFeed(feedUser));
 
+function showProfile(on) {
+  if (on) showHelp(false);
+  $('profileCard').classList.toggle('hide', !on);
+  $('helpShade').classList.toggle('hide', !on);
+  if (on) { $('profileCard').scrollTop = 0; renderProfile(); }
+}
+$('profClose').addEventListener('click', () => showProfile(false));
 function showHelp(on) {
+  if (on) $('profileCard').classList.add('hide');
   $('helpCard').classList.toggle('hide', !on);
   $('helpShade').classList.toggle('hide', !on);
   $('helpCard').classList.remove('shut');
   if (on) $('helpCard').scrollTop = 0;
 }
 $('helpClose').addEventListener('click', () => showHelp(false));
-$('helpShade').addEventListener('click', () => showHelp(false));
+$('helpShade').addEventListener('click', () => { showHelp(false); showProfile(false); });
 
 /* fold any card by tapping its title, remembered per card */
 (function () {
   const shut = recall('shut') || {};
   document.querySelectorAll('.card').forEach((card, i) => {
     const t = card.querySelector(':scope > .cardTitle');
-    if (!t || card.id === 'helpCard') return;
+    if (!t || card.id === 'helpCard' || card.id === 'profileCard') return;
     const key = card.id || ('card' + i + ':' + (t.textContent || '').trim().slice(0, 20));
     t.classList.add('fold');
     const first = t.firstElementChild;
