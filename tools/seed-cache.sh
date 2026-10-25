@@ -18,6 +18,8 @@ MIDDLE=0
 if [ "$1" = "bottom" ]; then REVERSE=1; shift; fi
 if [ "$1" = "middle" ]; then MIDDLE=1; shift; fi
 LISTS_DIR="$(cd "$(dirname "$0")" && pwd)/lists"
+KINDS="acapella instrumental"; PLAIN=0
+if [ "$1" = "classical" ]; then KINDS="instrumental"; PLAIN=1; fi
 if [ -n "$1" ] && [ -f "$LISTS_DIR/$1.txt" ]; then
   echo "using the $1 list"
   set -- 0 "$LISTS_DIR/$1.txt"
@@ -68,8 +70,10 @@ while IFS=$'\t' read -r title artist; do
   [ -z "$title" ] && continue
   count=$((count + 1))
   if [ "$LIMIT" -gt 0 ] && [ "$count" -gt "$LIMIT" ]; then break; fi
-  for kind in acapella instrumental; do
+  for kind in $KINDS; do
     q="$title $artist $kind"
+    # pieces with no singing: search the recording itself, and save it under both the plain and the instrumental search
+    sq="$q"; [ "$PLAIN" = "1" ] && sq="$title $artist"
     grep -Fxq "$q" "$DONE" && continue
     already=$(curl -s -X POST -H 'content-type: application/json' --data "$(jq -n --arg q "$q" '{query: $q, checkOnly: true}')" "$API" | jq -r '.cached // false')
     if [ "$already" = "true" ]; then echo "$q" >> "$DONE"; echo "[$count/$TOTAL] $title / $artist / $kind: already in the cache, skipped"; continue; fi
@@ -77,7 +81,7 @@ while IFS=$'\t' read -r title artist; do
     reason=""
     for wait in 30 90 240; do
       out=$(yt-dlp --flat-playlist --skip-download --no-warnings \
-        --print $'%(id)s\t%(title)s\t%(channel,uploader|)s' "ytsearch8:$q" 2>"$WORK/err.txt" </dev/null)
+        --print $'%(id)s\t%(title)s\t%(channel,uploader|)s' "ytsearch8:$sq" 2>"$WORK/err.txt" </dev/null)
       lines=$(printf '%s\n' "$out" | grep -E '^[A-Za-z0-9_-]{11}'$'\t' || true)
       [ -n "$lines" ] && break
       reason=$(grep -v '^$' "$WORK/err.txt" | tail -n 1 | cut -c1-140)
@@ -99,6 +103,7 @@ while IFS=$'\t' read -r title artist; do
       { query: $q,
         results: [ split("\n")[] | select(length > 0) | split("\t") | { videoId: .[0], title: .[1], channel: (.[2] // "") } ] }')
     reply=$(curl -s -X POST -H 'content-type: application/json' --data "$body" "$API")
+    if [ "$PLAIN" = "1" ]; then curl -s -X POST -H 'content-type: application/json' --data "$(printf '%s' "$body" | jq --arg q "$sq" '.query = $q')" "$API" >/dev/null; fi
     if [ "$(printf '%s' "$reply" | jq -r '.stored // false')" = "true" ]; then stored=$((stored + 1)); fi
     echo "[$count/$TOTAL] $title / $artist / $kind: $(printf '%s' "$reply" | jq -r 'if .stored then "saved \(.count)" else (.reason // .error // "skipped") end')"
     echo "$q" >> "$DONE"

@@ -1,0 +1,109 @@
+Symphony No. 5|Ludwig van Beethoven
+Moonlight Sonata|Ludwig van Beethoven
+Fur Elise|Ludwig van Beethoven
+Symphony No. 9 Ode to Joy|Ludwig van Beethoven
+Symphony No. 7 Allegretto|Ludwig van Beethoven
+Pathetique Sonata|Ludwig van Beethoven
+Emperor Concerto|Ludwig van Beethoven
+Eine kleine Nachtmusik|Wolfgang Amadeus Mozart
+Symphony No. 40|Wolfgang Amadeus Mozart
+Rondo alla Turca|Wolfgang Amadeus Mozart
+Piano Concerto No. 21|Wolfgang Amadeus Mozart
+Lacrimosa|Wolfgang Amadeus Mozart
+Clarinet Concerto|Wolfgang Amadeus Mozart
+Toccata and Fugue in D minor|Johann Sebastian Bach
+Air on the G String|Johann Sebastian Bach
+Cello Suite No. 1 Prelude|Johann Sebastian Bach
+Brandenburg Concerto No. 3|Johann Sebastian Bach
+Jesu Joy of Man's Desiring|Johann Sebastian Bach
+Goldberg Variations Aria|Johann Sebastian Bach
+Prelude in C Major|Johann Sebastian Bach
+The Four Seasons Spring|Antonio Vivaldi
+The Four Seasons Summer|Antonio Vivaldi
+The Four Seasons Winter|Antonio Vivaldi
+The Four Seasons Autumn|Antonio Vivaldi
+Canon in D|Johann Pachelbel
+Clair de Lune|Claude Debussy
+Arabesque No. 1|Claude Debussy
+Reverie|Claude Debussy
+Gymnopedie No. 1|Erik Satie
+Gnossienne No. 1|Erik Satie
+Nocturne Op. 9 No. 2|Frederic Chopin
+Fantaisie Impromptu|Frederic Chopin
+Minute Waltz|Frederic Chopin
+Ballade No. 1|Frederic Chopin
+Raindrop Prelude|Frederic Chopin
+Revolutionary Etude|Frederic Chopin
+Heroic Polonaise|Frederic Chopin
+Swan Lake|Pyotr Ilyich Tchaikovsky
+Dance of the Sugar Plum Fairy|Pyotr Ilyich Tchaikovsky
+1812 Overture|Pyotr Ilyich Tchaikovsky
+Piano Concerto No. 1|Pyotr Ilyich Tchaikovsky
+Waltz of the Flowers|Pyotr Ilyich Tchaikovsky
+Hungarian Dance No. 5|Johannes Brahms
+Brahms Lullaby|Johannes Brahms
+Symphony No. 3 Poco Allegretto|Johannes Brahms
+Liebestraum No. 3|Franz Liszt
+La Campanella|Franz Liszt
+Hungarian Rhapsody No. 2|Franz Liszt
+Ave Maria|Franz Schubert
+Unfinished Symphony|Franz Schubert
+Serenade|Franz Schubert
+Trout Quintet|Franz Schubert
+Piano Concerto No. 2|Sergei Rachmaninoff
+Rhapsody on a Theme of Paganini|Sergei Rachmaninoff
+Prelude in C sharp minor|Sergei Rachmaninoff
+Vocalise|Sergei Rachmaninoff
+In the Hall of the Mountain King|Edvard Grieg
+Morning Mood|Edvard Grieg
+Piano Concerto in A minor|Edvard Grieg
+New World Symphony|Antonin Dvorak
+Humoresque|Antonin Dvorak
+Wedding March|Felix Mendelssohn
+Violin Concerto in E minor|Felix Mendelssohn
+Bolero|Maurice Ravel
+Pavane for a Dead Princess|Maurice Ravel
+Pomp and Circumstance|Edward Elgar
+Nimrod|Edward Elgar
+Mars the Bringer of War|Gustav Holst
+Jupiter|Gustav Holst
+Danse Macabre|Camille Saint-Saens
+The Swan|Camille Saint-Saens
+Caprice No. 24|Niccolo Paganini
+Adagio for Strings|Samuel Barber
+Rhapsody in Blue|George Gershwin
+Ride of the Valkyries|Richard Wagner
+Also sprach Zarathustra|Richard Strauss
+The Blue Danube|Johann Strauss II
+Radetzky March|Johann Strauss I
+William Tell Overture|Gioachino Rossini
+Carmen Habanera Suite|Georges Bizet
+Night on Bald Mountain|Modest Mussorgsky
+Pictures at an Exhibition|Modest Mussorgsky
+Flight of the Bumblebee|Nikolai Rimsky-Korsakov
+Scheherazade|Nikolai Rimsky-Korsakov
+Dance of the Knights|Sergei Prokofiev
+Peter and the Wolf|Sergei Prokofiev
+The Rite of Spring|Igor Stravinsky
+Firebird Suite|Igor Stravinsky
+Waltz No. 2|Dmitri Shostakovich
+Finlandia|Jean Sibelius
+Adagio in G minor|Tomaso Albinoni
+Hallelujah Chorus|George Frideric Handel
+Water Music|George Frideric Handel
+Arrival of the Queen of Sheba|George Frideric Handel
+Sarabande|George Frideric Handel
+Trumpet Concerto|Joseph Haydn
+Surprise Symphony|Joseph Haydn
+O Fortuna|Carl Orff
+Gabriel's Oboe|Ennio Morricone
+Spiegel im Spiegel|Arvo Part
+Nuvole Bianche|Ludovico Einaudi
+Experience|Ludovico Einaudi
+Una Mattina|Ludovico Einaudi
+River Flows in You|Yiruma
+On the Nature of Daylight|Max Richter
+Metamorphosis One|Philip Glass
+Comptine d'un autre ete|Yann Tiersen
+The Entertainer|Scott Joplin
+Maple Leaf Rag|Scott Joplin
