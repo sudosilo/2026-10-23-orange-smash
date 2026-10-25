@@ -2882,21 +2882,42 @@ function ytSearch(qEnc) {
   $('ytClear').onclick = () => { try { localStorage.removeItem('smash:ytkey'); } catch (e) {} show(); };
 })();
 
+let profMode = 'in';
 async function renderProfile() {
   const body = $('profBody');
   if (!sbReady) { body.innerHTML = '<span style="color:var(--ink-faint)">Supabase is not connected to this app yet</span>'; $('profTag').textContent = 'OFFLINE'; return; }
   if (!sbUser) {
     $('profTag').textContent = 'SIGNED OUT';
-    body.innerHTML = '<div style="font-size:13px;color:var(--ink-soft)">Sign in to keep samples and your smash timeline on every phone.</div>' +
+    const making = profMode === 'create';
+    body.innerHTML = '<div class="btnRow" style="margin-top:0"><button class="seg' + (making ? '' : ' on') + '" id="pTabIn">SIGN IN</button><button class="seg' + (making ? ' on' : '') + '" id="pTabUp">CREATE ACCOUNT</button></div>' +
+      '<div style="font-size:13px;color:var(--ink-soft);margin-top:8px">' + (making ? 'Make an account to keep samples, share smashes, and link your phones.' : 'Sign in to keep samples and your smash timeline on every phone.') + '</div>' +
+      (making ? '<input class="profIn" id="pNewName" placeholder="Display name" autocomplete="nickname">' : '') +
       '<input class="profIn" id="pEmail" type="email" placeholder="Email" autocomplete="email">' +
-      '<input class="profIn" id="pPass" type="password" placeholder="Password, 6 or more characters" autocomplete="current-password">' +
-      '<div class="btnRow"><button class="sbtn go" id="pIn">Sign in</button><button class="sbtn" id="pUp">Create account</button></div><div id="pMsg" class="mono" style="font-size:12px;color:var(--accent);margin-top:8px"></div>';
-    const creds = () => ({ email: $('pEmail').value.trim(), password: $('pPass').value });
-    $('pIn').onclick = async () => { const r = await sb.auth.signInWithPassword(creds()); $('pMsg').textContent = r.error ? r.error.message : ''; };
-    $('pUp').onclick = async () => {
-      const r = await sb.auth.signUp(creds());
-      if (r.error) { $('pMsg').textContent = r.error.message; return; }
-      $('pMsg').textContent = r.data && r.data.session ? '' : 'Account made, check your email to confirm, then sign in';
+      '<input class="profIn" id="pPass" type="password" placeholder="Password, 6 or more characters" autocomplete="' + (making ? 'new-password' : 'current-password') + '">' +
+      (making ? '<input class="profIn" id="pPass2" type="password" placeholder="Password again" autocomplete="new-password">' : '') +
+      '<div class="btnRow"><button class="sbtn go" id="pGo">' + (making ? 'Create account' : 'Sign in') + '</button></div><div id="pMsg" class="mono" style="font-size:12px;color:var(--accent);margin-top:8px"></div>';
+    $('pTabIn').onclick = () => { profMode = 'in'; renderProfile(); };
+    $('pTabUp').onclick = () => { profMode = 'create'; renderProfile(); };
+    const say = (t) => { $('pMsg').textContent = t; };
+    $('pGo').onclick = async () => {
+      const email = $('pEmail').value.trim(), password = $('pPass').value;
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { say('Type a full email address'); return; }
+      if (password.length < 6) { say('The password needs 6 or more characters'); return; }
+      if (!making) { say('Signing in'); const r = await sb.auth.signInWithPassword({ email, password }); say(r.error ? r.error.message : ''); return; }
+      if (password !== $('pPass2').value) { say('The two passwords do not match'); return; }
+      const name = ($('pNewName').value || '').trim().slice(0, 40);
+      say('Making the account');
+      const r = await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.origin, data: { display_name: name } } });
+      if (r.error) { say(r.error.message); return; }
+      if (r.data && r.data.user && Array.isArray(r.data.user.identities) && !r.data.user.identities.length) { say('That email already has an account, sign in instead'); profMode = 'in'; return; }
+      if (r.data && r.data.session) {
+        if (name) await sb.from('smash_profiles').upsert({ id: r.data.user.id, display_name: name });
+        profMode = 'in'; say('');
+        return;
+      }
+      profMode = 'in';
+      body.querySelector('#pMsg').textContent = '';
+      say('Account made. Open the email from Supabase, tap the confirm link, then sign in here');
     };
     return;
   }
@@ -2904,12 +2925,14 @@ async function renderProfile() {
   let name = '';
   const prof = await sb.from('smash_profiles').select('display_name').eq('id', sbUser.id).maybeSingle();
   if (prof.data) name = prof.data.display_name || '';
+  if (!name && sbUser.user_metadata && sbUser.user_metadata.display_name) { name = sbUser.user_metadata.display_name; sb.from('smash_profiles').upsert({ id: sbUser.id, display_name: name }); }
   body.innerHTML = '<div class="infoHead">' + esc(name || sbUser.email) + '</div><div class="infoSub">' + esc(sbUser.email) + '</div>' +
     '<input class="profIn" id="pName" placeholder="Display name" value="' + esc(name) + '">' +
-    '<div class="btnRow"><button class="sbtn" id="pSave">Save name</button><button class="sbtn" id="pOut">Sign out</button></div>' +
+    '<div class="btnRow"><button class="sbtn" id="pSave">Save name</button><button class="sbtn" id="pOut">Sign out</button><button class="sbtn" id="pNew">New account</button></div>' +
     '<div class="infoRow" style="margin-top:10px"><b>Your timeline</b></div><div id="pTimeline" style="font-size:13px;line-height:1.5"><span style="color:var(--ink-faint)">Loading</span></div>';
   $('pSave').onclick = async () => { await sb.from('smash_profiles').upsert({ id: sbUser.id, display_name: $('pName').value.trim() }); renderProfile(); };
   $('pOut').onclick = async () => { await sb.auth.signOut(); };
+  $('pNew').onclick = async () => { profMode = 'create'; await sb.auth.signOut(); renderProfile(); };
   const { data } = await sb.from('smash_timeline').select('kind,title,artist,ref,data,created_at').order('created_at', { ascending: false }).limit(80);
   const verbs = { heard: 'Heard', artist: 'Looked up', album: 'Opened an album by', sample: 'Sampled', drop: 'Dropped', share: 'Shared' };
   if (!data || !data.length) { $('pTimeline').innerHTML = '<span style="color:var(--ink-faint)">Nothing yet. Hear songs, look up artists, and sample smashes to fill it.</span>'; return; }
