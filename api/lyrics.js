@@ -20,6 +20,7 @@ export default async function handler(request) {
       if (direct.ok) {
         const row = await direct.json();
         if (row && row.syncedLyrics) return reply({ results: [shape(row)] });
+        if (row && row.instrumental) return reply({ instrumental: true, results: [] });
       }
       const fallback = await search('track_name=' + encodeURIComponent(title) + '&artist_name=' + encodeURIComponent(artist));
       return reply({ results: fallback });
