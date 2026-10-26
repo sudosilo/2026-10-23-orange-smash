@@ -348,7 +348,7 @@
     <div class="toggleRow"><span>Instrumental BPM</span><input class="numIn" id="tuneBpm" type="number" step="0.1" inputmode="decimal"></div>
     <div class="toggleRow"><span>Acapella BPM</span><input class="numIn" id="wordsBpm" type="number" step="0.1" inputmode="decimal"></div>
     <div class="toggleRow"><span>How far off</span><span class="mono gapVal" id="gapVal">--</span></div>
-    <div class="toggleRow"><span>Stretch the voice to the beat</span><input type="checkbox" id="stretchOn" checked></div>
+    <div class="toggleRow"><span>Stretch the voice to the beat</span><input type="checkbox" id="stretchOn"></div>
     <div class="toggleRow"><span>Acapella tempo</span><span class="ctl"><button class="seg" data-fold="0.5">HALF</button><button class="seg on" data-fold="1">1X</button><button class="seg" data-fold="2">DOUBLE</button></span></div>
     <div class="toggleRow"><span>Acapella start</span><span class="ctl"><span class="mono readout" id="offsetVal">+0.00 s</span><button class="seg" id="offsetReset">RST</button></span></div>
   </div>
@@ -793,7 +793,9 @@ function nudgeDrop(d) {
 $('backBtn').addEventListener('click', () => { nudgeDrop(-quarterBeat()); log('NUDGE', 'acapella lands earlier'); });
 $('fwdBtn').addEventListener('click', () => { nudgeDrop(quarterBeat()); log('NUDGE', 'acapella lands later'); });
 $('offsetReset').addEventListener('click', () => { offsetSec = 0; setArmed(true); renderOffset(); lastIdx = -2; });
-$('stretchOn').addEventListener('change', () => { acaRateSet = null; renderRatio(); renderSmashHeader(); });
+/* stretch is off unless you turn it on, natural speed sounds better; the choice is remembered */
+$('stretchOn').checked = recall('stretch') === true;
+$('stretchOn').addEventListener('change', (e) => { acaRateSet = null; if (e.isTrusted) store('stretch', $('stretchOn').checked); renderRatio(); renderSmashHeader(); });
 
 function renderSmashHeader() {
   if (!isSmashy()) return;
@@ -1473,7 +1475,7 @@ $('sgDrop').addEventListener('click', () => {
   $('sgList').innerHTML = '';
   if (!res.length) { $('sgMsg').textContent = 'Not enough timed lines to score'; return; }
   let note = beatMap ? 'Using the beat map, the quiet spots count.' : 'No beat map yet, so this is timing and length only. The phones add the map.';
-  if (wb > 0 && $('stretchOn').checked) { const want = ratio(); if (Math.abs(rate - want) / want > 0.015) note += ' The voice plays at ' + rate.toFixed(2) + 'x but needs ' + want.toFixed(3) + 'x, so it will drift. A closer BPM pair keeps it tight.'; }
+  if (wb > 0) { const want = tb / (wb * fold); if (Math.abs(rate - want) / want > 0.015) note += ' The voice is ' + Math.abs((want / rate - 1) * 100).toFixed(1) + '% off the beat at this speed, so it will drift. A closer BPM pair keeps it tight.'; }
   if (gridPhase === 0) note += ' Set beat one in the Snap card for better bar lines.';
   $('sgMsg').textContent = note;
   res.forEach(o => $('sgList').appendChild(sgRow(o, null, () => applySuggestion(o))));
@@ -3224,7 +3226,9 @@ async function autoFindVoice(targetBpm) {
 }
 /* a beat only counts if there is an instrumental upload of that exact song */
 async function autoFindBeat(targetBpm) {
-  for (const spread of [Math.max(4, targetBpm * 0.04), Math.max(8, targetBpm * 0.08), 16]) {
+  /* at natural speed the beat has to be within a couple of percent of the voice, stretching allows a wider net */
+  const spreads = $('stretchOn').checked ? [Math.max(4, targetBpm * 0.04), Math.max(8, targetBpm * 0.08), 16] : [2, Math.max(2, targetBpm * 0.02), Math.max(3, targetBpm * 0.03)];
+  for (const spread of spreads) {
     for (let tries = 0; tries < 4 && autoState.on; tries++) {
       const c = await autoPick('inst', targetBpm, spread);
       if (!c) break;
@@ -3260,7 +3264,6 @@ async function autoNextBeat() {
   const beat = await autoFindBeat(voice.c.bpm);
   if (!beat) { autoState.busy = false; autoFail('no ' + st.instTag + ' instrumentals near ' + Math.round(voice.c.bpm) + ' BPM' + autoSavedHint()); return; }
   autoState.beatPick = beat.c;
-  $('stretchOn').checked = true;
   $('snapOn').checked = true;
   pickTune({ videoId: beat.vid.videoId, title: decodeHtml(beat.vid.title), channel: decodeHtml(beat.vid.channel), bpm: beat.c.bpm });
   wantPlay = true;
