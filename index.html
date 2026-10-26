@@ -65,9 +65,24 @@
   .lcdTop { display: flex; justify-content: space-between; font-size: 10px; letter-spacing: 1.5px; color: var(--lcd-dim); }
   .nowRow { display: flex; gap: 12px; margin-top: 10px; align-items: center; }
   .art { width: 78px; height: 78px; border-radius: 6px; background: var(--lcd-edge); flex: none; overflow: hidden; position: relative; display: grid; place-items: center; }
-  #tuneSlot { position: absolute; inset: 0; overflow: hidden; visibility: hidden; }
-  #tuneSlot.on { visibility: visible; }
-  #tuneSlot iframe { position: absolute; top: 0; left: 50%; width: 139px; height: 78px; transform: translateX(-50%); border: 0; pointer-events: none; }
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .pane { min-width: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .screen { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 6px; overflow: hidden; background: var(--lcd-edge); display: grid; place-items: center; }
+  #tuneSlot, #acaSlot { position: absolute; inset: 0; overflow: hidden; visibility: hidden; }
+  #tuneSlot.on, #acaSlot.on { visibility: visible; }
+  #tuneSlot iframe, #acaSlot iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; }
+  .tapCover { position: absolute; inset: 0; display: grid; place-items: center; background: var(--lcd-edge) center / cover no-repeat; }
+  .tapCover.live { background: transparent !important; }
+  .tapCover.empty { background-image: none !important; }
+  .tapIcon { width: 46px; height: 46px; border-radius: 50%; background: var(--key); border: 1px solid var(--chassis-edge); display: grid; place-items: center; color: var(--ink); box-shadow: 0 2px 0 var(--key-shadow); }
+  .tapIcon svg { width: 22px; height: 22px; fill: currentColor; }
+  .tapCover.live .tapIcon { opacity: .35; }
+  .tapCover.live.loud .tapIcon { opacity: 0; }
+  .tapCover.empty .tapIcon { display: none; }
+  .paneCap { display: flex; justify-content: space-between; gap: 6px; margin-top: 4px; font-size: 9px; letter-spacing: 1px; color: var(--lcd-dim); }
+  .paneCap b { font-weight: 700; color: var(--lcd-ink); }
+  .paneCap .st.warn { color: var(--accent); }
+  .nowText.full { margin-top: 10px; }
   .nowText { min-width: 0; flex: 1; }
   .title { font-size: 17px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .artist { font-size: 13px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -131,8 +146,6 @@
 
   .acaRow { display: flex; gap: 10px; align-items: center; margin-top: 8px; }
   .art.small { width: 52px; height: 52px; }
-  #acaSlot { position: absolute; inset: 0; overflow: hidden; }
-  #acaSlot iframe { position: absolute; top: 0; left: 50%; width: 93px; height: 52px; transform: translateX(-50%); border: 0; pointer-events: none; }
   .artStack { display: flex; flex-direction: column; gap: 4px; align-items: center; flex: none; }
   .artCap { font-size: 8px; letter-spacing: 1px; color: var(--lcd-dim); }
   #acaInfo { flex: 1; min-width: 0; font-size: 13px; }
@@ -271,14 +284,20 @@
 <div id="mainView">
 <div class="lcd mono" id="lcd">
   <div class="lcdTop"><span id="lcdLabel">NOW SMASHING</span><span id="lcdTag">NO INSTRUMENTAL</span></div>
-  <div class="nowRow">
-    <div class="artStack"><div class="art"><svg width="28" height="28" viewBox="0 0 24 24"><path d="M12 3v10.6A4 4 0 1 0 14 17V7h4V3z" fill="#6f7d5c"/></svg><div id="tuneSlot"><div id="tunePlayer"></div></div></div><span class="artCap">BEAT</span></div>
-    <div class="artStack"><div class="art small"><svg width="20" height="20" viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v7a3 3 0 0 0 3 3z" fill="#6f7d5c"/></svg><div id="acaSlot"><div id="acaPlayer"></div></div></div><span class="artCap">VOICE</span></div>
-    <div class="nowText">
-      <div class="title" id="title">Pick a tune</div>
-      <div class="artist" id="artist">Then pick the acapella</div>
-      <div class="meta" id="meta">--</div>
+  <div class="split">
+    <div class="pane" id="instPane" role="button" tabindex="0" aria-label="Play or pause the instrumental">
+      <div class="screen"><div id="tuneSlot"><div id="tunePlayer"></div></div><div class="tapCover empty" id="instCover"><span class="tapIcon" id="instIcon"></span></div></div>
+      <div class="paneCap"><b>INSTRUMENTAL</b><span class="st" id="instStat">EMPTY</span></div>
     </div>
+    <div class="pane" id="acaPane" role="button" tabindex="0" aria-label="Play or pause the acapella">
+      <div class="screen"><div id="acaSlot"><div id="acaPlayer"></div></div><div class="tapCover empty" id="acaCover"><span class="tapIcon" id="acaIcon"></span></div></div>
+      <div class="paneCap"><b>ACAPELLA</b><span class="st" id="acaStat">EMPTY</span></div>
+    </div>
+  </div>
+  <div class="nowText full">
+    <div class="title" id="title">Pick a tune</div>
+    <div class="artist" id="artist">Then pick the acapella</div>
+    <div class="meta" id="meta">--</div>
   </div>
   <div class="lyrics">
     <div class="lyrLabel">NOW</div>
@@ -306,7 +325,7 @@
   <button class="key small" id="livePlayBtn" aria-label="Play"><svg viewBox="0 0 24 24" style="width:24px;height:24px"><path d="M7 5v14l12-7z"/></svg></button>
   <button class="key big" id="liveListenBtn" aria-label="Listen"><svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v7a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-2.1A7 7 0 0 0 19 12z"/></svg></button>
   <button class="key small" id="liveDropBtn" aria-label="Drop">DROP</button>
-  <button class="key small" id="liveNextBtn" aria-label="Next song">NEXT</button>
+  <button class="key small" id="liveNextBtn" aria-label="Clear">CLEAR</button>
 </div>
 <div class="keyLabels mono hide" id="liveLabels"><span id="livePlayLabel">PLAY</span><span id="liveListenLabel">LISTEN</span><span>DROP</span><span>CLEAR</span></div>
 <div class="keyLabels mono hide" id="karaokeLabels"><span></span><span id="listenLabel">LISTEN</span><span></span></div>
@@ -456,8 +475,8 @@
   <div class="cardTitle"><span>Band room</span><span class="mono" id="rmTag">OFF</span></div>
   <div style="font-size:13px;color:var(--ink-soft);line-height:1.45">Type the same room code as a friend, any account works. Tapperator and the other stomp box instruments can join the same code and play on the same clock. Pick the part you run, the other person runs the rest.</div>
   <div class="searchRow" style="margin-top:8px"><input id="rmCode" placeholder="room code" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="sbtn" id="rmJoin">Join</button></div>
-  <div class="toggleRow"><span>I run</span><span class="ctl"><button class="seg" data-rp="beat">BEAT</button><button class="seg" data-rp="voice">VOICE</button><button class="seg on" data-rp="both">BOTH</button></span></div>
-  <div class="toggleRow"><span>This phone plays</span><span class="ctl"><label class="mono" style="font-size:11px;display:flex;gap:4px;align-items:center"><input type="checkbox" id="rmHearBeat" checked>BEAT</label><label class="mono" style="font-size:11px;display:flex;gap:4px;align-items:center"><input type="checkbox" id="rmHearVoice" checked>VOICE</label></span></div>
+  <div class="toggleRow"><span>I run</span><span class="ctl"><button class="seg" data-rp="beat">INSTRUMENTAL</button><button class="seg" data-rp="voice">ACAPELLA</button><button class="seg on" data-rp="both">BOTH</button></span></div>
+  <div class="toggleRow"><span>This phone plays</span><span class="ctl"><label class="mono" style="font-size:11px;display:flex;gap:4px;align-items:center"><input type="checkbox" id="rmHearBeat" checked>INSTRUMENTAL</label><label class="mono" style="font-size:11px;display:flex;gap:4px;align-items:center"><input type="checkbox" id="rmHearVoice" checked>ACAPELLA</label></span></div>
   <div class="toggleRow"><span>Start the beat on the room's bar line</span><input type="checkbox" id="rmAlign" checked></div>
   <div class="toggleRow"><span>Room tempo</span><span class="ctl"><span class="mono readout" id="rmTempo">--</span><button class="seg" id="rmSetTempo">USE BEAT BPM</button></span></div>
   <div id="rmList" style="margin-top:6px;font-size:13px"></div>
@@ -633,6 +652,7 @@ function clearLyrics() { lastIdx = -2; $('lyrCur').textContent = ''; $('lyrNext'
 let mode = 'smash';
 function isSmashy() { return mode === 'smash' || mode === 'auto'; }
 function setMode(m) {
+  manualInst = false; manualAca = false;
   mode = m;
   document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('on', b.getAttribute('data-mode') === m));
   const groups = { smash: ['smashPanel', 'smashTransport', 'smashLabels'], karaoke: ['karaokePanel', 'karaokeTransport', 'karaokeLabels'], live: ['livePanel', 'liveTransport', 'liveLabels'], auto: ['autoPanel'] };
@@ -982,10 +1002,11 @@ function renderPlayKey() {
   const playing = playerState === 1;
   $('playBtn').innerHTML = playing ? ICON_PAUSE : ICON_PLAY;
   $('playLabel').textContent = playing ? 'PAUSE' : 'PLAY';
-  $('tuneSlot').classList.toggle('on', playing || playerState === 2 || playerState === 3);
+  paintPanes();
   if (isSmashy()) setLink(playing ? 'ok' : (playerState === 3 ? 'busy' : ''), playing ? 'SMASHING' : (playerState === 3 ? 'LOADING' : 'STANDBY'));
 }
 $('playBtn').addEventListener('click', () => {
+  manualInst = false; manualAca = false;
   if (rmOn && !rmPart.beat) { rmCmd(playerState === 1 ? 'pause' : 'play'); return; }
   if (!tune) { log('PLAY', 'pick an instrumental first'); return; }
   if (rmOn && playerState !== 1 && rmAlignStart()) return;
@@ -1126,7 +1147,7 @@ function acaSeek(t) {
 }
 
 function syncAca(tuneT) {
-  if (!aca || !acaReady || !acaPlayer) return;
+  if (!aca || !acaReady || !acaPlayer || manualAca) return;
   const r = appliedRate();
   if (!acaRateLocked && acaRateSet !== null && acaState === 1 && Date.now() - acaRateSetAt > 1500) {
     let real = acaRateSet;
@@ -1672,8 +1693,8 @@ function msRender() {
     const row = document.createElement('div');
     row.className = 'msRow';
     row.innerHTML = '<div class="nm">' + esc(p.name) + (id === msDevId ? ' <span class="rs">(this phone)</span>' : '') + (id === msLeader ? ' <span class="rs">directing</span>' : '') + '</div>' +
-      '<label><input type="checkbox" data-r="beat"' + (p.beat ? ' checked' : '') + '>BEAT</label>' +
-      '<label><input type="checkbox" data-r="voice"' + (p.voice ? ' checked' : '') + '>VOICE</label>';
+      '<label><input type="checkbox" data-r="beat"' + (p.beat ? ' checked' : '') + '>INSTRUMENTAL</label>' +
+      '<label><input type="checkbox" data-r="voice"' + (p.voice ? ' checked' : '') + '>ACAPELLA</label>';
     row.querySelectorAll('input').forEach(cb => cb.addEventListener('change', () => {
       const role = { beat: p.beat, voice: p.voice };
       role[cb.getAttribute('data-r')] = cb.checked;
@@ -2099,7 +2120,8 @@ function karaokeTick() {
 }
 
 /* ===== LIVE SMASH MODE ===== */
-let liveSong = null, liveTimer = null, liveBusy = false, liveNudgeMs = 0, liveShift = 0;
+let liveSong = null, liveTimer = null, liveBusy = false, liveNudgeMs = 0, liveShift = 0, liveGen = 0;
+let manualInst = false, manualAca = false;
 let liveWarmedFor = null, liveApplied = 1;
 let liveInst = null, donor = null, donorAca = null, liveDropAt = null, liveRate = 1, liveRateSet = null, liveLastSync = 0, liveWantPlay = false;
 
@@ -2135,21 +2157,28 @@ async function liveIdentify() {
   if (liveBusy || mode !== 'live') return;
   if (!(await openMic())) return;
   liveBusy = true;
+  const gen = liveGen;
   if (liveTimer) { clearTimeout(liveTimer); liveTimer = null; }
   liveState('LISTENING');
   setLink('busy', 'LISTENING');
+  $('liveListenLabel').textContent = 'LISTENING';
   const capturedAt = now();
-  const blob = await recordClip();
   let data = null;
   try {
+    const blob = await Promise.race([recordClip(), new Promise(r => setTimeout(() => r(null), CLIP_MS + 4000))]);
+    if (!blob) throw new Error('mic');
     const form = new FormData();
     form.append('audio', blob, 'clip.webm');
     form.append('capturedAt', String(capturedAt));
     form.append('clipDurationMs', String(CLIP_MS));
-    data = await (await fetch('/api/recognize', { method: 'POST', body: form })).json();
-  } catch (e) { data = { error: 'network' }; }
+    const ctl = new AbortController();
+    const kill = setTimeout(() => ctl.abort(), 20000);
+    data = await (await fetch('/api/recognize', { method: 'POST', body: form, signal: ctl.signal })).json();
+    clearTimeout(kill);
+  } catch (e) { data = { error: e && e.message === 'mic' ? 'the mic did not answer' : 'no answer from the song finder' }; }
   liveBusy = false;
   $('liveListenLabel').textContent = 'LISTEN';
+  if (gen !== liveGen) { if (mode === 'live') setTimeout(liveIdentify, 200); return; }
   if (!data || data.error || typeof data.offsetSeconds !== 'number') {
     liveState(liveSong ? 'HELD' : 'NO MATCH');
     setLink(liveSong ? 'ok' : '', liveSong ? 'LOCKED' : 'NO MATCH');
@@ -2190,6 +2219,7 @@ function scheduleLive(ms) {
 }
 
 async function findLiveInstrumental() {
+  const forSong = liveSong;
   $('liveInstTag').textContent = 'SEARCHING';
   $('liveInstResults').innerHTML = '';
   let d = null;
@@ -2198,7 +2228,9 @@ async function findLiveInstrumental() {
     /* lyric sites mark pieces with no singing as instrumental */
     try { const l = await (await fetch('/api/lyrics?title=' + encodeURIComponent(liveSong.title) + '&artist=' + encodeURIComponent(liveSong.artist))).json(); plain = !!(l && l.instrumental); } catch (e) {}
   }
+  if (liveSong !== forSong) return;
   try { d = await (await ytSearch(encodeURIComponent(liveSong.title + ' ' + liveSong.artist + (plain ? '' : ' instrumental')))).json(); } catch (e) {}
+  if (liveSong !== forSong) return;
   const rows = (d && d.results ? d.results : []).filter(r => plain ? !/live|cover|reaction|tutorial|lesson|karaoke/i.test(decodeHtml(r.title)) : /instrumental|karaoke|no vocals|beat/i.test(decodeHtml(r.title)));
   if (plain) log('INSTRUMENTAL', liveSong.title + ' has no singing, so the recording itself is the instrumental');
   if (!rows.length) { liveInst = null; $('liveInstTag').textContent = 'NONE FOUND'; $('liveInstInfo').textContent = 'No instrumental upload found, the donor plays over the room'; return; }
@@ -2382,7 +2414,8 @@ function liveTick() {
   const doSync = nowMs - liveLastSync > 1000;
   if (doSync) liveLastSync = nowMs;
 
-  if (liveWantPlay && liveInst && $('liveInstOn').checked && playerReady && doSync) {
+  if (manualInst) {}
+  else if (liveWantPlay && liveInst && $('liveInstOn').checked && playerReady && doSync) {
     try {
       const at = player.getCurrentTime() || 0;
       const instDur = player.getDuration() || 0;
@@ -2394,7 +2427,8 @@ function liveTick() {
     } catch (e) {}
   } else if ((!liveWantPlay || !$('liveInstOn').checked) && playerState === 1) { try { player.pauseVideo(); } catch (e) {} }
 
-  if (donor && donorAca && acaReady && liveWantPlay && $('liveAcaOn').checked) {
+  if (manualAca) {}
+  else if (donor && donorAca && acaReady && liveWantPlay && $('liveAcaOn').checked) {
     if (liveDropAt === null) armLiveDrop(pos);
     const wantRate = $('liveStretch').checked ? liveRate : 1;
     if (liveRateSet !== wantRate) {
@@ -2436,11 +2470,15 @@ function liveTick() {
 /* clear the palette: drop the locked song, its instrumental and the donor, go quiet, and listen for whatever plays next */
 function liveClear() {
   if (liveTimer) { clearTimeout(liveTimer); liveTimer = null; }
-  try { if (player) player.pauseVideo(); } catch (e) {}
-  pauseAca();
+  liveGen++;
+  warmToken++; acaWarming = false;
+  try { if (player && playerReady) { player.stopVideo(); player.unMute(); } } catch (e) {}
+  try { if (acaPlayer && acaReady) { acaPlayer.stopVideo(); acaPlayer.unMute(); acaPlayer.setVolume(voiceVol()); } } catch (e) {}
   liveSong = null; liveInst = null; donor = null; donorAca = null; liveDropAt = null;
   liveRateSet = null; liveLastSync = 0; liveShift = 0; liveNudgeMs = 0; liveWarmedFor = null;
-  loadedVideo = null;
+  loadedVideo = null; acaLoaded = null; manualInst = false; manualAca = false;
+  liveWantPlay = false; $('livePlayLabel').textContent = 'PLAY'; $('livePlayBtn').classList.remove('armed');
+  $('elapsed').textContent = '0:00'; $('remaining').textContent = '-0:00'; $('progress').style.width = '0%'; $('lcdTag').textContent = '';
   clearLyrics();
   $('liveInstInfo').textContent = 'Listen to a song and its instrumental loads here'; $('liveInstInfo').style.color = '';
   $('liveInstResults').innerHTML = ''; $('liveInstTag').textContent = '';
@@ -2448,8 +2486,9 @@ function liveClear() {
   $('liveAcaInfo').textContent = 'Pick a suggestion and its vocal only version loads here'; $('liveAcaResults').innerHTML = ''; $('liveAcaTag').textContent = '';
   $('liveBpmNow').value = '';
   renderLiveHeader(); renderLiveNudges(); renderStats(null);
+  paintPanes();
   log('CLEAR', 'cleared, listening for the next song');
-  setTimeout(liveIdentify, 400);
+  if (!liveBusy) setTimeout(liveIdentify, 400);
 }
 $('liveNextBtn').addEventListener('click', liveClear);
 
@@ -2457,6 +2496,7 @@ $('liveListenBtn').addEventListener('click', liveIdentify);
 $('liveStretch').addEventListener('change', () => { liveRateSet = null; liveLastSync = 0; });
 $('livePlayBtn').addEventListener('click', () => {
   liveWantPlay = !liveWantPlay;
+  manualInst = false; manualAca = false;
   $('livePlayLabel').textContent = liveWantPlay ? 'STOP' : 'PLAY';
   $('livePlayBtn').classList.toggle('armed', liveWantPlay);
   if (liveWantPlay) {
@@ -3338,6 +3378,58 @@ setInterval(() => {
 
 /* main loop */
 setInterval(() => { if (isSmashy()) smashTick(); else if (mode === 'karaoke') karaokeTick(); else liveTick(); }, 100);
+
+/* split screen: instrumental on the left, acapella on the right; tap either picture to play or pause it, tap again while muted to bring the sound back */
+const ICON_MUTED = '<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.6 3l2.7-2.7-1.4-1.4-2.7 2.7-2.7-2.7-1.4 1.4 2.7 2.7-2.7 2.7 1.4 1.4 2.7-2.7 2.7 2.7 1.4-1.4z"/></svg>';
+function paneInfo(p, ready, vid, st) {
+  if (!p || !ready || !vid) return { has: false, text: 'EMPTY', playing: false, muted: false };
+  let muted = false;
+  try { muted = p.isMuted() || p.getVolume() === 0; } catch (e) {}
+  const playing = st === 1;
+  const text = playing ? (muted ? 'PLAYING, NO SOUND' : 'PLAYING') : st === 3 ? 'LOADING' : st === 2 ? 'PAUSED' : st === 0 ? 'ENDED' : 'READY';
+  return { has: true, text, playing, muted };
+}
+let paneThumbs = { inst: null, aca: null };
+function paintPane(key, info, vid) {
+  const cover = $(key + 'Cover'), slot = $(key === 'inst' ? 'tuneSlot' : 'acaSlot');
+  slot.classList.toggle('on', info.has);
+  cover.classList.toggle('empty', !info.has);
+  cover.classList.toggle('live', info.playing);
+  cover.classList.toggle('loud', info.playing && !info.muted);
+  if (paneThumbs[key] !== vid) { paneThumbs[key] = vid; cover.style.backgroundImage = vid ? 'url(https://i.ytimg.com/vi/' + vid + '/hqdefault.jpg)' : ''; }
+  $(key + 'Icon').innerHTML = info.playing ? (info.muted ? ICON_MUTED : ICON_PAUSE) : ICON_PLAY;
+  const stat = $(key + 'Stat');
+  stat.textContent = info.text;
+  stat.classList.toggle('warn', info.playing && info.muted);
+}
+function paintPanes() {
+  if (!$('instCover')) return;
+  paintPane('inst', paneInfo(player, playerReady, loadedVideo, playerState), loadedVideo);
+  paintPane('aca', paneInfo(acaPlayer, acaReady, acaLoaded, acaState), acaLoaded);
+}
+setInterval(paintPanes, 300);
+function soundOn(p, vol) { try { p.unMute(); if (p.getVolume() === 0) p.setVolume(vol); } catch (e) {} }
+$('instPane').addEventListener('click', () => {
+  if (!player || !playerReady || !loadedVideo) { log('INSTRUMENTAL', 'nothing loaded yet'); return; }
+  const info = paneInfo(player, playerReady, loadedVideo, playerState);
+  if (info.playing && info.muted) { soundOn(player, 100); log('INSTRUMENTAL', 'sound back on'); paintPanes(); return; }
+  if (isSmashy()) { $('playBtn').click(); return; }
+  manualInst = true;
+  try { if (info.playing) player.pauseVideo(); else { soundOn(player, 100); player.playVideo(); } } catch (e) {}
+  log('INSTRUMENTAL', info.playing ? 'paused by hand' : 'started by hand');
+  paintPanes();
+});
+$('acaPane').addEventListener('click', () => {
+  if (!acaPlayer || !acaReady || !acaLoaded) { log('ACAPELLA', 'nothing loaded yet'); return; }
+  const info = paneInfo(acaPlayer, acaReady, acaLoaded, acaState);
+  warmToken++; acaWarming = false;
+  if (info.playing && info.muted) { soundOn(acaPlayer, voiceVol() || 100); log('ACAPELLA', 'sound back on'); paintPanes(); return; }
+  manualAca = true;
+  try { if (info.playing) acaPlayer.pauseVideo(); else { soundOn(acaPlayer, voiceVol() || 100); acaPlayer.playVideo(); } } catch (e) {}
+  log('ACAPELLA', info.playing ? 'paused by hand' : 'started by hand');
+  paintPanes();
+});
+['instPane', 'acaPane'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $(id).click(); } }));
 
 /* restore last tune */
 renderOffset(); renderRatio(); renderKn(); renderAs(); setArmed(false); loadPhase();
