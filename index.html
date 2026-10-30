@@ -88,15 +88,15 @@
   .artist { font-size: 13px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .meta { font-size: 11px; color: var(--lcd-dim); margin-top: 6px; letter-spacing: .5px; }
 
-  .tracks { margin-top: 10px; display: grid; gap: 10px; }
-  .trk { border-radius: 8px; padding: 8px 10px; background: rgba(255,255,255,.35); border-left: 4px solid #3f7fbf; }
+  .tracks { margin-top: 10px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; }
+  .trk { min-width: 0; overflow: hidden; border-radius: 8px; padding: 8px 10px; background: rgba(255,255,255,.35); border-left: 4px solid #3f7fbf; }
   .trk.aca { border-left-color: #c4561f; }
   .trkHead { display: flex; align-items: baseline; gap: 8px; font-size: 11px; min-width: 0; }
   .trkHead b { letter-spacing: 1.5px; font-size: 10px; flex: 0 0 auto; }
   .trk.inst .trkHead b { color: #3f7fbf; } .trk.aca .trkHead b { color: #c4561f; }
   .trkName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--lcd-ink); font-size: 12px; }
   .trkBpm { flex: 0 0 auto; color: var(--lcd-dim); }
-  .trkRow { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+  .trkRow { min-width: 0; display: flex; align-items: center; gap: 8px; margin-top: 6px; }
   .trkTop { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--chassis-edge); background: var(--key); color: var(--ink); display: grid; place-items: center; padding: 0; box-shadow: 0 2px 0 var(--key-shadow); }
   .trkTop svg { width: 14px; height: 14px; fill: currentColor; }
   .trkTop:active { transform: translateY(1px); box-shadow: none; }
@@ -107,7 +107,7 @@
   .sbar .fill::after { content: ''; position: absolute; right: -7px; top: -4px; width: 14px; height: 14px; border-radius: 50%; background: inherit; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
   .sbar .mark { position: absolute; top: 4px; width: 2px; height: 14px; background: var(--lcd-ink); opacity: .55; display: none; }
   .sbar.off { cursor: default; opacity: .7; }
-  .trkTime { flex: 0 0 auto; font-size: 11px; color: var(--lcd-dim); min-width: 74px; text-align: right; }
+  .trkTime { flex: 0 0 auto; font-size: 11px; color: var(--lcd-dim); text-align: right; white-space: nowrap; }
   .miniLyr { margin-top: 4px; font-size: 12px; color: var(--lcd-dim); min-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .miniLyr.chorus { color: var(--accent); }
   #lcd.smashy .nowText, #lcd.smashy .lyrics, #lcd.smashy .bar, #lcd.smashy .times { display: none; }
@@ -452,7 +452,7 @@
     <div class="toggleRow"><span>Auto follow songs</span><input type="checkbox" id="liveFollow" checked></div>
     <div class="toggleRow"><span>Play the instrumental</span><input type="checkbox" id="liveInstOn" checked></div>
     <div class="toggleRow"><span>Play the donor acapella</span><input type="checkbox" id="liveAcaOn" checked></div>
-    <div class="toggleRow"><span>Stretch the voice to the beat</span><input type="checkbox" id="liveStretch" checked></div>
+    <div class="toggleRow"><span>Stretch the voice to the beat</span><input type="checkbox" id="liveStretch"></div>
     <div class="toggleRow"><span>Beat timing</span><span class="ctl"><button class="seg" data-ln="-50">-</button><span class="mono readout" id="lnVal">+0 ms</span><button class="seg" data-ln="50">+</button><button class="seg" data-ln="0">RST</button></span></div>
     <div class="toggleRow"><span>Acapella shift</span><span class="ctl"><button class="seg" data-las="-0.1">-</button><span class="mono readout" id="lasVal">+0.0 s</span><button class="seg" data-las="0.1">+</button><button class="seg" data-las="0">RST</button></span></div>
   </div>
@@ -2087,8 +2087,7 @@ function updateTracks() {
   $('tAcName').textContent = voiceObj ? (words && !isLive ? words.title + ' / ' + words.artist : voiceObj.title) : (isLive ? 'Pick a donor' : 'Pick an acapella');
   $('tInBpm').textContent = tb > 0 ? Math.round(tb) + ' BPM' : '';
   $('tAcBpm').textContent = wb > 0 ? Math.round(wb) + ' BPM' : '';
-  ['tInBar', 'tAcBar'].forEach(id => $(id).classList.toggle('off', isLive));
-  $('tInTop').classList.toggle('hide', isLive); $('tAcTop').classList.toggle('hide', isLive);
+
   /* instrumental */
   const bd = trkDur(player, playerReady && loadedVideo), bp = dragBar === 'in' ? dragBar_t : trkPos(player, playerReady && loadedVideo);
   $('tInFill').style.width = bd ? Math.min(100, bp / bd * 100) + '%' : '0%';
@@ -2133,8 +2132,14 @@ function setCue(t) {
 }
 /* move the instrumental; the acapella follows, and waits again if you go back before the drop */
 function beatSeek(t) {
-  if (mode === 'live' || !player || !playerReady || !loadedVideo) return;
+  if (!player || !playerReady || !loadedVideo) return;
   t = Math.max(0, t);
+  if (mode === 'live') {
+    manualInst = true;
+    try { player.seekTo(t, true); if (playerState !== 1) { soundOn(player, 100); player.playVideo(); } } catch (e) {}
+    log('INSTRUMENTAL', 'playing from ' + fmt(t) + ' by hand, CLEAR or the next song puts it back on the room clock');
+    return;
+  }
   loopCarry = 0; voiceLoopIdx = -1; dropTimerFor = null; acaLastSync = 0; acaParkedAt = null; lastIdx = -2; twinArmedFor = null; loopWrapFor = null;
   try { player.seekTo(t, true); } catch (e) {}
   if (dropAt !== null && t < dropAt) pauseAca();
@@ -2143,7 +2148,14 @@ function beatSeek(t) {
 }
 /* move the acapella: before the drop this moves where it starts, after the drop it plays from there right now */
 function voiceSeek(pos) {
-  if (mode === 'live' || !aca) return;
+  if (mode === 'live') {
+    if (!acaPlayer || !acaReady || !acaLoaded) { log('ACAPELLA', 'pick a donor first'); return; }
+    manualAca = true; warmToken++; acaWarming = false;
+    try { acaPlayer.seekTo(Math.max(0, pos), true); if (acaState !== 1) { soundOn(acaPlayer, voiceVol() || 100); acaPlayer.playVideo(); } } catch (e) {}
+    log('ACAPELLA', 'playing from ' + fmt(pos) + ' by hand');
+    return;
+  }
+  if (!aca) return;
   let vt = 0; try { vt = (player && playerReady ? player.getCurrentTime() || 0 : 0) + loopCarry; } catch (e) {}
   if (!words || waiting(vt) || playerState !== 1) { setCue(pos - acaShift); log('ACAPELLA', 'starts from ' + fmt(pos) + (dropAt !== null ? ', drops at ' + dropAt.toFixed(2) + ' s' : ', tap drop on the beat')); }
   else { setCue(pos - acaShift); setDropAt(vt, null); dropTimerFor = dropAt; fireDrop(dropAt); log('ACAPELLA', 'playing from ' + fmt(pos)); }
@@ -2154,7 +2166,7 @@ function voiceSeek(pos) {
   const bar = $(id);
   const durOf = () => key === 'in' ? trkDur(player, playerReady && loadedVideo) : trkDur(acaPlayer, acaReady && acaLoaded);
   bar.addEventListener('pointerdown', (e) => {
-    if (mode === 'live' || !durOf()) return;
+    if (!durOf()) return;
     dragBar = key; dragBar_t = barFrac(bar, e) * durOf();
     try { bar.setPointerCapture(e.pointerId); } catch (err) {}
     updateTracks();
@@ -2170,12 +2182,14 @@ function voiceSeek(pos) {
   bar.addEventListener('pointercancel', () => { dragBar = null; });
 });
 $('tInTop').addEventListener('click', () => {
+  if (mode === 'live') { if (!liveInst) { log('INSTRUMENTAL', 'listen to lock a song first'); return; } beatSeek(0); return; }
   if (!tune) { log('INSTRUMENTAL', 'pick an instrumental first'); return; }
   if (!player || !playerReady || !loadedVideo || playerState !== 1) { wantPlay = true; loadTune(true); setTimeout(() => beatSeek(0), 600); }
   else beatSeek(0);
   log('INSTRUMENTAL', 'back to the start' + (dropAt !== null ? ', the acapella drops at ' + dropAt.toFixed(2) + ' s' : ''));
 });
 $('tAcTop').addEventListener('click', () => {
+  if (mode === 'live') { voiceSeek(0); return; }
   if (!aca) { log('ACAPELLA', 'pick an acapella first'); return; }
   voiceSeek(0);
 });
