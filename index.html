@@ -441,7 +441,7 @@
 <div id="smashPanel">
   <div class="card c-inst">
     <div class="cardTitle"><span>Instrumental</span><span class="mono" id="tuneCount"></span></div>
-    <div class="searchRow"><input id="tuneInput" placeholder="Song or artist"><button class="sbtn" id="tuneFind">Find</button></div>
+    <div class="searchRow"><input id="tuneInput" placeholder="Song, artist, or a BPM like 128"><button class="sbtn" id="tuneFind">Find</button></div>
     <div class="toggleRow"><span>Instrumentals only</span><input type="checkbox" id="instOnly" checked></div>
     <div id="tuneResults"></div>
     <div class="picked" id="tunePicked"></div>
@@ -449,7 +449,7 @@
 
   <div class="card c-aca">
     <div class="cardTitle"><span>Acapella</span><span class="mono" id="wordsCount"></span></div>
-    <div class="searchRow"><input id="wordsInput" placeholder="Song or artist"><button class="sbtn" id="wordsFind">Find</button></div>
+    <div class="searchRow"><input id="wordsInput" placeholder="Song, artist, or a BPM like 128"><button class="sbtn" id="wordsFind">Find</button></div>
     <div id="wordsResults" style="margin-top:6px;"></div>
     <div class="picked" id="wordsPicked"></div>
   </div>
@@ -951,10 +951,60 @@ function allVoice(title, artist) {
 }
 function noVocals(title, artist) { return NO_VOCALS.test(title || '') || COMPOSERS.test((artist || '') + ' ' + (title || '')); }
 
+/* typing a tempo like 128 or 128 bpm searches the saved songs by their BPM instead of YouTube titles */
+function bpmQuery(q) { const m = /^\s*(\d{2,3}(?:\.\d+)?)\s*(bpm)?\s*$/i.exec(q || ''); const b = m ? parseFloat(m[1]) : 0; return b >= 50 && b <= 220 ? b : 0; }
+async function savedAtBpm(kind, bpm) {
+  const seen = new Set(), out = [];
+  for (const spread of [2, 4]) {
+    let d = null;
+    try { d = await (await fetch('/api/auto-pick?tag=any&bpm=' + bpm + '&spread=' + spread + '&cached=1&kind=' + kind + '&n=12')).json(); } catch (e) {}
+    (d && d.picks ? d.picks : []).forEach(p => { const k = (p.title + '|' + p.artist).toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push(p); } });
+    if (out.length >= 8) break;
+  }
+  out.sort((a, b) => Math.abs(a.bpm * a.fold - bpm) - Math.abs(b.bpm * b.fold - bpm));
+  return out;
+}
+function bpmRows(box, picks, bpm, onPick) {
+  box.innerHTML = '';
+  if (!picks.length) { box.innerHTML = '<div class="resultRow"><span class="rs">NO SAVED SONGS NEAR ' + Math.round(bpm) + ' BPM YET</span></div>'; return; }
+  box.insertAdjacentHTML('beforeend', '<div class="rs" style="margin:4px 0">Saved songs near ' + Math.round(bpm) + ' BPM</div>');
+  picks.forEach(p => {
+    const b = document.createElement('button');
+    b.className = 'resultRow';
+    b.innerHTML = '<div class="rt"><div>' + esc(p.title) + '</div><div class="rs">' + esc(p.artist) + ' / ' + Math.round(p.bpm) + ' BPM' + (p.fold === 2 ? ', plays at double' : p.fold === 0.5 ? ', plays at half' : '') + '</div></div>';
+    b.addEventListener('click', () => onPick(p, b));
+    box.appendChild(b);
+  });
+}
+async function instVideoFor(p) {
+  let d = null;
+  const plain = noVocals(p.title, p.artist);
+  try { d = await (await ytSearch(encodeURIComponent((p.query || p.title + ' ' + p.artist) + ' instrumental'))).json(); } catch (e) {}
+  const rows = (d && d.results ? d.results : []).filter(r => plain || /instrumental|karaoke|no vocals|backing track|beat/i.test(decodeHtml(r.title)));
+  return rows.find(r => titleIn(r.title, p.title)) || rows[0] || null;
+}
+async function lyricsFor(p) {
+  let d = null;
+  try { d = await (await fetch('/api/lyrics?title=' + encodeURIComponent(p.title) + '&artist=' + encodeURIComponent(p.artist))).json(); } catch (e) {}
+  return d && d.results && d.results[0] && d.results[0].synced ? d.results[0] : null;
+}
+
 /* tune search */
 async function findTune() {
   const q = $('tuneInput').value.trim();
   if (!q) return;
+  const bq = bpmQuery(q);
+  if (bq) {
+    $('tuneResults').innerHTML = '<div class="resultRow"><span class="rs">LOOKING THROUGH SAVED SONGS</span></div>';
+    const picks = await savedAtBpm('inst', bq);
+    bpmRows($('tuneResults'), picks, bq, async (p, row) => {
+      row.querySelector('.rs').textContent = 'FINDING THE INSTRUMENTAL';
+      const v = await instVideoFor(p);
+      if (!v) { row.querySelector('.rs').textContent = 'NO INSTRUMENTAL UPLOAD FOUND'; return; }
+      pickTune({ videoId: v.videoId, title: decodeHtml(v.title), channel: decodeHtml(v.channel), bpm: p.bpm * p.fold });
+    });
+    return;
+  }
   $('tuneResults').innerHTML = '<div class="resultRow"><span class="rs">SEARCHING</span></div>';
   const inst = $('instOnly').checked;
   const classical = noVocals(q, '');
@@ -1008,6 +1058,19 @@ function pickTune(t) {
 async function findWords() {
   const q = $('wordsInput').value.trim();
   if (!q) return;
+  const bq = bpmQuery(q);
+  if (bq) {
+    $('wordsResults').innerHTML = '<div class="resultRow"><span class="rs">LOOKING THROUGH SAVED SONGS</span></div>';
+    const picks = await savedAtBpm('aca', bq);
+    bpmRows($('wordsResults'), picks, bq, async (p, row) => {
+      row.querySelector('.rs').textContent = 'GETTING THE LYRICS';
+      const l = await lyricsFor(p);
+      if (!l) { row.querySelector('.rs').textContent = 'NO TIMED LYRICS FOR THIS ONE'; return; }
+      fold = p.fold || 1; document.querySelectorAll('[data-fold]').forEach(x => x.classList.toggle('on', parseFloat(x.getAttribute('data-fold')) === fold));
+      pickWords(Object.assign({}, l, { bpm: p.bpm }));
+    });
+    return;
+  }
   $('wordsResults').innerHTML = '<div class="resultRow"><span class="rs">SEARCHING</span></div>';
   let d = null;
   try { d = await (await fetch('/api/lyrics?q=' + encodeURIComponent(q))).json(); } catch (e) {}
@@ -2315,7 +2378,7 @@ function qBuild() {
     c.id = 'qSlot' + i;
     c.innerHTML =
       '<div class="cardTitle"><span>' + Q_LABELS[i] + (Q_KIND[i] === 'inst' ? ' instrumental' : ' acapella') + '</span><span class="mono" id="qSt' + i + '">EMPTY</span></div>' +
-      '<div class="searchRow"><input id="qIn' + i + '" placeholder="' + (Q_KIND[i] === 'inst' ? 'Song or artist' : 'Song or artist, with timed lyrics') + '"><button class="sbtn" id="qFind' + i + '">Find</button></div>' +
+      '<div class="searchRow"><input id="qIn' + i + '" placeholder="' + (Q_KIND[i] === 'inst' ? 'Song, artist, or a BPM like 128' : 'Song, artist, or a BPM like 128') + '"><button class="sbtn" id="qFind' + i + '">Find</button></div>' +
       '<div id="qRes' + i + '"></div>' +
       '<div class="rs" id="qName' + i + '" style="margin-top:6px"></div>' +
       '<div class="qScreen" style="margin-top:6px"><div id="qPlayer' + i + '"></div></div>' +
@@ -2365,6 +2428,24 @@ async function qFind(i) {
   if (!q) return;
   const res = $('qRes' + i);
   res.innerHTML = '<div class="resultRow"><span class="rs">SEARCHING</span></div>';
+  const bq = bpmQuery(q);
+  if (bq) {
+    const picks = await savedAtBpm(Q_KIND[i], bq);
+    bpmRows(res, picks, bq, async (p, row) => {
+      if (Q_KIND[i] === 'inst') {
+        row.querySelector('.rs').textContent = 'FINDING THE INSTRUMENTAL';
+        const v = await instVideoFor(p);
+        if (!v) { row.querySelector('.rs').textContent = 'NO INSTRUMENTAL UPLOAD FOUND'; return; }
+        qPickVid(i, v);
+      } else {
+        row.querySelector('.rs').textContent = 'GETTING THE LYRICS';
+        const l = await lyricsFor(p);
+        if (!l) { row.querySelector('.rs').textContent = 'NO TIMED LYRICS FOR THIS ONE'; return; }
+        qPickSong(i, l);
+      }
+    });
+    return;
+  }
   if (Q_KIND[i] === 'inst') {
     let d = null;
     const classical = noVocals(q, '');
