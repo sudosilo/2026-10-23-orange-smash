@@ -117,6 +117,8 @@
   .swapMsg:empty { display: none; }
   #lcd.liveMode .swapMsg { display: none; }
   #lcd.liveMode .swapRow { display: none; }
+  .benderRow { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .benderRow .swapMsg a { color: var(--accent); word-break: break-all; }
   .miniLyr { margin-top: 4px; font-size: 12px; color: var(--lcd-dim); min-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .miniLyr.chorus { color: var(--accent); }
   #lcd.smashy .nowText, #lcd.smashy .lyrics, #lcd.smashy .bar, #lcd.smashy .times { display: none; }
@@ -364,6 +366,7 @@
       <div class="trkRow"><button class="trkTop" id="tAcTop" aria-label="Acapella to the start"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button><div class="sbar" id="tAcBar"><div class="fill" id="tAcFill"></div><div class="mark" id="tAcMark"></div></div><span class="trkTime" id="tAcTime">0:00</span></div>
       <div class="miniLyr" id="tAcLyr"></div>
     </div>
+    <div class="benderRow" id="benderRow"><button class="swapBtn" id="benderBtn" aria-label="Send this smash to Smash Bender"><svg viewBox="0 0 24 24"><path d="M3 12h11l-4-4 1.4-1.4L18 13l-6.6 6.4L10 18l4-4H3zM19 5h2v16h-2z"/></svg><span>SEND TO SMASH BENDER</span></button><div class="swapMsg" id="benderMsg"></div></div>
   </div>
   <div class="nowText full">
     <div class="title" id="title">Pick a tune</div>
@@ -2410,6 +2413,48 @@ $('swapBtn').addEventListener('click', async () => {
     swapSay('Swap failed, nothing changed');
   } finally { swapBusy = false; $('swapBtn').classList.remove('busy'); }
 });
+/* ===== SMASH BENDER: hand the instrumental and acapella to the Frankfurt server, which splits, bends and mixes them ===== */
+const BENDER = 'https://smash-bender.167-233-137-169.sslip.io';
+function ytUrl(vid) { return 'https://www.youtube.com/watch?v=' + vid; }
+function benderName(a, b) { return ((a || 'beat') + ' x ' + (b || 'voice')).replace(/\(.*?\)|\[.*?\]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60); }
+async function sendToBender(o, say) {
+  const fd = new FormData();
+  fd.append('project', o.project);
+  fd.append('song_one', o.songOne);
+  fd.append('song_two', o.songTwo);
+  fd.append('seconds', String(o.seconds || 45));
+  fd.append('source', 'smash director');
+  fd.append('instrumental_url', ytUrl(o.instVid));
+  fd.append('acapella_url', ytUrl(o.acaVid));
+  say('Sending to Smash Bender');
+  let d = null, status = 0;
+  try {
+    const ctl = new AbortController(); const kill = setTimeout(() => ctl.abort(), 90000);
+    const res = await fetch(BENDER + '/api/import', { method: 'POST', body: fd, signal: ctl.signal });
+    clearTimeout(kill);
+    status = res.status;
+    d = await res.json().catch(() => null);
+  } catch (e) { say('Could not reach Smash Bender, the server may be down'); return null; }
+  if (!d || status >= 400) { say('Smash Bender turned it down: ' + ((d && (d.detail || d.error)) || ('error ' + status))); return null; }
+  tl('share', o.songTwo, null, null, { bender: d.job, project: d.project });
+  return d;
+}
+function benderLink(box, d) {
+  const url = d.open || (BENDER + '/?project=' + encodeURIComponent(d.project || ''));
+  box.innerHTML = 'Sent to Smash Bender, job ' + esc(d.job || '') + '. Open <a href="' + esc(url) + '" target="_blank" rel="noopener">the project</a> to follow it';
+}
+$('benderBtn').addEventListener('click', async () => {
+  const box = $('benderMsg');
+  const say = (t) => { box.textContent = t; log('SMASH BENDER', t); };
+  if (!tune || !aca) { say('Load an instrumental and an acapella first'); return; }
+  const one = songOfTune(tune), two = words ? words.title + (words.artist ? ' ' + words.artist : '') : aca.title;
+  const songOne = (one.title + ' ' + one.artist).trim() || tune.title;
+  $('benderBtn').classList.add('busy');
+  const d = await sendToBender({ project: benderName(one.title || tune.title, words ? words.title : aca.title), songOne, songTwo: two, instVid: tune.videoId, acaVid: aca.videoId, seconds: 45 }, say);
+  $('benderBtn').classList.remove('busy');
+  if (d) benderLink(box, d);
+});
+
 /* ===== QUADRO SMASH: two beats and two voices, cut together clip by clip on two lanes ===== */
 const Q_LABELS = ['BEAT A', 'BEAT B', 'VOICE A', 'VOICE B'];
 const Q_KIND = ['inst', 'inst', 'aca', 'aca'];
@@ -3510,6 +3555,18 @@ function renderSamples() {
     exp.addEventListener('click', () => downloadBlob(new Blob([JSON.stringify(r, null, 2)], { type: 'application/json' }), r.name + '.json'));
     const del = document.createElement('button'); del.className = 'seg'; del.textContent = 'X';
     del.addEventListener('click', () => { const gone = samples.splice(i, 1)[0]; store('samples', samples); renderSamples(); if (gone && gone.cloudId) cloudDeleteSample(gone); });
+    if (r.tune && r.aca) {
+      const bend = document.createElement('button'); bend.className = 'seg'; bend.textContent = 'BEND';
+      bend.addEventListener('click', async () => {
+        const say = (t) => log('SMASH BENDER', t);
+        const one = songOfTune({ title: r.tune.title, channel: '' });
+        const two = r.words ? r.words.title + (r.words.artist ? ' ' + r.words.artist : '') : r.aca.title;
+        const secs = typeof r.end === 'number' && typeof r.start === 'number' ? Math.max(10, Math.min(240, Math.ceil(r.end - r.start + 10))) : 45;
+        const d = await sendToBender({ project: benderName(one.title || r.tune.title, r.words ? r.words.title : r.aca.title), songOne: (one.title + ' ' + one.artist).trim(), songTwo: two, instVid: r.tune.videoId, acaVid: r.aca.videoId, seconds: secs }, say);
+        if (d) { const m = $('sampMsg'); if (m) benderLink(m, d); }
+      });
+      row.appendChild(bend);
+    }
     const sh = document.createElement('button'); sh.className = 'seg' + (r.isPublic ? ' on' : ''); sh.textContent = r.isPublic ? 'SHARED' : 'SHARE';
     sh.addEventListener('click', () => toggleShare(r));
     row.appendChild(sh);
