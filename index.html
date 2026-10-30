@@ -88,6 +88,30 @@
   .artist { font-size: 13px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .meta { font-size: 11px; color: var(--lcd-dim); margin-top: 6px; letter-spacing: .5px; }
 
+  .tracks { margin-top: 10px; display: grid; gap: 10px; }
+  .trk { border-radius: 8px; padding: 8px 10px; background: rgba(255,255,255,.35); border-left: 4px solid #3f7fbf; }
+  .trk.aca { border-left-color: #c4561f; }
+  .trkHead { display: flex; align-items: baseline; gap: 8px; font-size: 11px; min-width: 0; }
+  .trkHead b { letter-spacing: 1.5px; font-size: 10px; flex: 0 0 auto; }
+  .trk.inst .trkHead b { color: #3f7fbf; } .trk.aca .trkHead b { color: #c4561f; }
+  .trkName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--lcd-ink); font-size: 12px; }
+  .trkBpm { flex: 0 0 auto; color: var(--lcd-dim); }
+  .trkRow { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+  .trkTop { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--chassis-edge); background: var(--key); color: var(--ink); display: grid; place-items: center; padding: 0; box-shadow: 0 2px 0 var(--key-shadow); }
+  .trkTop svg { width: 14px; height: 14px; fill: currentColor; }
+  .trkTop:active { transform: translateY(1px); box-shadow: none; }
+  .sbar { position: relative; flex: 1; height: 22px; touch-action: none; cursor: pointer; }
+  .sbar::before { content: ''; position: absolute; left: 0; right: 0; top: 8px; height: 6px; border-radius: 3px; background: rgba(38,50,26,.15); }
+  .sbar .fill { position: absolute; left: 0; top: 8px; height: 6px; width: 0%; border-radius: 3px; background: #3f7fbf; }
+  .trk.aca .sbar .fill { background: #c4561f; }
+  .sbar .fill::after { content: ''; position: absolute; right: -7px; top: -4px; width: 14px; height: 14px; border-radius: 50%; background: inherit; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+  .sbar .mark { position: absolute; top: 4px; width: 2px; height: 14px; background: var(--lcd-ink); opacity: .55; display: none; }
+  .sbar.off { cursor: default; opacity: .7; }
+  .trkTime { flex: 0 0 auto; font-size: 11px; color: var(--lcd-dim); min-width: 74px; text-align: right; }
+  .miniLyr { margin-top: 4px; font-size: 12px; color: var(--lcd-dim); min-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .miniLyr.chorus { color: var(--accent); }
+  #lcd.smashy .nowText, #lcd.smashy .lyrics, #lcd.smashy .bar, #lcd.smashy .times { display: none; }
+  #lcd:not(.smashy) .tracks { display: none; }
   .lyrics { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--lcd-edge); text-align: center; }
   .lyrLabel { font-size: 9px; letter-spacing: 2px; color: var(--lcd-dim); text-align: left; }
   .lyr { min-height: 52px; line-height: 1.3; display: flex; align-items: center; justify-content: center; }
@@ -292,6 +316,17 @@
     <div class="pane" id="acaPane" role="button" tabindex="0" aria-label="Play or pause the acapella">
       <div class="screen"><div id="acaSlot"><div id="acaPlayer"></div></div><div class="tapCover empty" id="acaCover"><span class="tapIcon" id="acaIcon"></span></div></div>
       <div class="paneCap"><b>ACAPELLA</b><span class="st" id="acaStat">EMPTY</span></div>
+    </div>
+  </div>
+  <div class="tracks" id="tracks">
+    <div class="trk inst">
+      <div class="trkHead"><b>INSTRUMENTAL</b><span class="trkName" id="tInName">Pick an instrumental</span><span class="trkBpm" id="tInBpm"></span></div>
+      <div class="trkRow"><button class="trkTop" id="tInTop" aria-label="Instrumental to the start"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button><div class="sbar" id="tInBar"><div class="fill" id="tInFill"></div><div class="mark" id="tInMark"></div></div><span class="trkTime" id="tInTime">0:00</span></div>
+    </div>
+    <div class="trk aca">
+      <div class="trkHead"><b>ACAPELLA</b><span class="trkName" id="tAcName">Pick an acapella</span><span class="trkBpm" id="tAcBpm"></span></div>
+      <div class="trkRow"><button class="trkTop" id="tAcTop" aria-label="Acapella to the start"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button><div class="sbar" id="tAcBar"><div class="fill" id="tAcFill"></div><div class="mark" id="tAcMark"></div></div><span class="trkTime" id="tAcTime">0:00</span></div>
+      <div class="miniLyr" id="tAcLyr"></div>
     </div>
   </div>
   <div class="nowText full">
@@ -652,8 +687,10 @@ function clearLyrics() { lastIdx = -2; $('lyrCur').textContent = ''; $('lyrNext'
 let mode = 'smash';
 function isSmashy() { return mode === 'smash' || mode === 'auto'; }
 function setMode(m) {
+  if (m !== mode) wipeSession();
   manualInst = false; manualAca = false;
   mode = m;
+  $('lcd').classList.toggle('smashy', m !== 'karaoke');
   document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('on', b.getAttribute('data-mode') === m));
   const groups = { smash: ['smashPanel', 'smashTransport', 'smashLabels'], karaoke: ['karaokePanel', 'karaokeTransport', 'karaokeLabels'], live: ['livePanel', 'liveTransport', 'liveLabels'], auto: ['autoPanel'] };
   const show = new Set(groups[m] || []);
@@ -1999,6 +2036,151 @@ $('rmSetTempo').addEventListener('click', () => {
 });
 rmRender();
 
+/* ===== switching modes starts clean: nothing from the last mode stays loaded ===== */
+function wipeSession() {
+  if (sampling) stopSample();
+  if (autoState.on) autoStop();
+  if (karaokeTimer) { clearTimeout(karaokeTimer); karaokeTimer = null; }
+  if (liveTimer) { clearTimeout(liveTimer); liveTimer = null; }
+  closeMic();
+  liveGen++; warmToken++; acaWarming = false;
+  try { if (player && playerReady) { player.stopVideo(); player.unMute(); } } catch (e) {}
+  try { if (acaPlayer && acaReady) { acaPlayer.stopVideo(); acaPlayer.unMute(); } } catch (e) {}
+  try { if (twin && twinReady) twin.stopVideo(); } catch (e) {}
+  wantPlay = false; loadedVideo = null; acaLoaded = null; manualInst = false; manualAca = false; replayEnd = null; replayingName = null;
+  tune = null; store('tune', null);
+  words = null; wordsSrc = null; aca = null; acaSearch = null; acaRateSet = null; acaRateLocked = null; acaSeeks = [];
+  dropAt = null; dropTimerFor = null; cueT = 0; acaShift = 0; offsetSec = 0; acaParkedAt = null; lastIdx = -2; dropLog = [];
+  loopBeat = false; loopVoice = false; loopCarry = 0; voiceLoopIdx = -1; twinArmedFor = null; loopWrapFor = null;
+  beatMap = null; beatMapFor = null;
+  liveSong = null; liveInst = null; donor = null; donorAca = null; liveDropAt = null; liveWantPlay = false;
+  liveRateSet = null; liveLastSync = 0; liveShift = 0; liveNudgeMs = 0; liveWarmedFor = null;
+  live = null;
+  ['tuneResults', 'wordsResults', 'acaResults', 'sgList', 'dropLog', 'liveInstResults', 'liveSug', 'liveAcaResults'].forEach(id => { const el = $(id); if (el) el.innerHTML = ''; });
+  ['tuneCount', 'wordsCount', 'liveInstTag', 'liveSugTag', 'liveAcaTag', 'acaTag'].forEach(id => { const el = $(id); if (el) el.textContent = ''; });
+  ['tuneBpm', 'wordsBpm', 'dropIn', 'liveBpmNow'].forEach(id => { const el = $(id); if (el) el.value = ''; });
+  $('tunePicked').innerHTML = ''; $('tunePicked').classList.remove('on');
+  $('wordsPicked').innerHTML = ''; $('wordsPicked').classList.remove('on');
+  $('acaInfo').innerHTML = '<span style="color:var(--ink-faint)">Pick an acapella and the vocal only version loads here</span>';
+  $('cueSel').innerHTML = '<option value="0">0:00 top of the song</option>';
+  $('liveInstInfo').textContent = 'Listen to a song and its instrumental loads here'; $('liveInstInfo').style.color = '';
+  $('liveAcaInfo').textContent = 'Pick a suggestion and its vocal only version loads here';
+  $('livePlayLabel').textContent = 'PLAY'; $('livePlayBtn').classList.remove('armed');
+  $('sgMap').textContent = 'NO BEAT';
+  $('elapsed').textContent = '0:00'; $('remaining').textContent = '-0:00'; $('progress').style.width = '0%'; $('lcdTag').textContent = '';
+  renderAs(); renderOffset(); renderLoop(); renderStats(null); clearLyrics();
+  paintPanes();
+}
+
+/* ===== track bars: one for the instrumental, one for the acapella, drag to move, the button goes back to the start ===== */
+function trkDur(p, ready) { try { return p && ready ? p.getDuration() || 0 : 0; } catch (e) { return 0; } }
+function trkPos(p, ready) { try { return p && ready ? p.getCurrentTime() || 0 : 0; } catch (e) { return 0; } }
+let dragBar = null;
+function lineAt(lines, t) { let cur = null; for (const l of lines) { if (l.t <= t + 0.05) cur = l; else break; } return cur; }
+function updateTracks() {
+  if (mode === 'karaoke') return;
+  const isLive = mode === 'live';
+  const beatObj = isLive ? liveInst : tune, voiceObj = isLive ? donorAca : aca;
+  const tb = isLive ? (liveSong && liveSong.bpm) : parseFloat($('tuneBpm').value);
+  const wb = isLive ? (liveSong && liveSong.bpm) : parseFloat($('wordsBpm').value) * fold;
+  $('tInName').textContent = beatObj ? beatObj.title : (isLive ? 'Listen to lock a song' : 'Pick an instrumental');
+  $('tAcName').textContent = voiceObj ? (words && !isLive ? words.title + ' / ' + words.artist : voiceObj.title) : (isLive ? 'Pick a donor' : 'Pick an acapella');
+  $('tInBpm').textContent = tb > 0 ? Math.round(tb) + ' BPM' : '';
+  $('tAcBpm').textContent = wb > 0 ? Math.round(wb) + ' BPM' : '';
+  ['tInBar', 'tAcBar'].forEach(id => $(id).classList.toggle('off', isLive));
+  $('tInTop').classList.toggle('hide', isLive); $('tAcTop').classList.toggle('hide', isLive);
+  /* instrumental */
+  const bd = trkDur(player, playerReady && loadedVideo), bp = dragBar === 'in' ? dragBar_t : trkPos(player, playerReady && loadedVideo);
+  $('tInFill').style.width = bd ? Math.min(100, bp / bd * 100) + '%' : '0%';
+  $('tInTime').textContent = fmt(bp) + ' / ' + (bd ? fmt(bd) : '0:00');
+  const showDrop = !isLive && dropAt !== null && loopCarry === 0 && bd && dropAt < bd;
+  $('tInMark').style.display = showDrop ? 'block' : 'none';
+  if (showDrop) $('tInMark').style.left = (dropAt / bd * 100) + '%';
+  /* acapella: while it waits for the drop it shows where it will start */
+  const ad = trkDur(acaPlayer, acaReady && acaLoaded);
+  let vt = trkPos(player, playerReady) + loopCarry;
+  const parked = !isLive && words && waiting(vt);
+  const ap = dragBar === 'ac' ? dragBar_t : parked ? cueT + acaShift : trkPos(acaPlayer, acaReady && acaLoaded);
+  $('tAcFill').style.width = ad ? Math.min(100, ap / ad * 100) + '%' : '0%';
+  $('tAcTime').textContent = fmt(ap) + ' / ' + (ad ? fmt(ad) : '0:00');
+  $('tAcMark').style.display = !isLive && ad && words ? 'block' : 'none';
+  if (!isLive && ad) $('tAcMark').style.left = Math.min(100, cueT / ad * 100) + '%';
+  /* small lyric line under the acapella */
+  const src = isLive ? donor : words;
+  let text = '', chorus = false;
+  if (src && src.lines && src.lines.length) {
+    if (parked) { const l = lineAt(src.lines, cueT); text = (dropAt !== null ? 'Drops at ' + dropAt.toFixed(2) + ' s: ' : 'Waiting for drop: ') + (l && l.text ? l.text : 'top of the song'); }
+    else { const l = lineAt(src.lines, ap - (isLive ? 0 : acaShift)); if (l) { text = l.text; chorus = !!l.chorus; } }
+  }
+  $('tAcLyr').textContent = text;
+  $('tAcLyr').classList.toggle('chorus', chorus);
+}
+setInterval(updateTracks, 150);
+let dragBar_t = 0;
+function barFrac(bar, e) { const r = bar.getBoundingClientRect(); return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)); }
+function setCue(t) {
+  t = Math.max(0, Math.round(t * 100) / 100);
+  cueT = t;
+  const sel = $('cueSel');
+  if (![...sel.options].some(o => Math.abs(parseFloat(o.value) - t) < 0.005)) {
+    [...sel.options].forEach(o => { if (o.dataset.custom) o.remove(); });
+    const o = document.createElement('option'); o.value = String(t); o.dataset.custom = '1'; o.textContent = fmt(t) + ' picked on the bar';
+    const after = [...sel.options].filter(x => parseFloat(x.value) < t).pop();
+    if (after) after.after(o); else sel.prepend(o);
+  }
+  sel.value = [...sel.options].find(o => Math.abs(parseFloat(o.value) - t) < 0.005).value;
+  acaParkedAt = null; acaLastSync = 0; lastIdx = -2; voiceLoopIdx = -1;
+}
+/* move the instrumental; the acapella follows, and waits again if you go back before the drop */
+function beatSeek(t) {
+  if (mode === 'live' || !player || !playerReady || !loadedVideo) return;
+  t = Math.max(0, t);
+  loopCarry = 0; voiceLoopIdx = -1; dropTimerFor = null; acaLastSync = 0; acaParkedAt = null; lastIdx = -2; twinArmedFor = null; loopWrapFor = null;
+  try { player.seekTo(t, true); } catch (e) {}
+  if (dropAt !== null && t < dropAt) pauseAca();
+  if (typeof msSoon === 'function') msSoon(300);
+  if (typeof rmSoon === 'function') rmSoon(300);
+}
+/* move the acapella: before the drop this moves where it starts, after the drop it plays from there right now */
+function voiceSeek(pos) {
+  if (mode === 'live' || !aca) return;
+  let vt = 0; try { vt = (player && playerReady ? player.getCurrentTime() || 0 : 0) + loopCarry; } catch (e) {}
+  if (!words || waiting(vt) || playerState !== 1) { setCue(pos - acaShift); log('ACAPELLA', 'starts from ' + fmt(pos) + (dropAt !== null ? ', drops at ' + dropAt.toFixed(2) + ' s' : ', tap drop on the beat')); }
+  else { setCue(pos - acaShift); setDropAt(vt, null); dropTimerFor = dropAt; fireDrop(dropAt); log('ACAPELLA', 'playing from ' + fmt(pos)); }
+  if (typeof msSoon === 'function') msSoon(300);
+  if (typeof rmSoon === 'function') rmSoon(300);
+}
+[['tInBar', 'in'], ['tAcBar', 'ac']].forEach(([id, key]) => {
+  const bar = $(id);
+  const durOf = () => key === 'in' ? trkDur(player, playerReady && loadedVideo) : trkDur(acaPlayer, acaReady && acaLoaded);
+  bar.addEventListener('pointerdown', (e) => {
+    if (mode === 'live' || !durOf()) return;
+    dragBar = key; dragBar_t = barFrac(bar, e) * durOf();
+    try { bar.setPointerCapture(e.pointerId); } catch (err) {}
+    updateTracks();
+  });
+  bar.addEventListener('pointermove', (e) => { if (dragBar === key) { dragBar_t = barFrac(bar, e) * durOf(); updateTracks(); } });
+  const end = (e) => {
+    if (dragBar !== key) return;
+    const t = barFrac(bar, e) * durOf();
+    dragBar = null;
+    if (key === 'in') beatSeek(t); else voiceSeek(t);
+  };
+  bar.addEventListener('pointerup', end);
+  bar.addEventListener('pointercancel', () => { dragBar = null; });
+});
+$('tInTop').addEventListener('click', () => {
+  if (!tune) { log('INSTRUMENTAL', 'pick an instrumental first'); return; }
+  if (!player || !playerReady || !loadedVideo || playerState !== 1) { wantPlay = true; loadTune(true); setTimeout(() => beatSeek(0), 600); }
+  else beatSeek(0);
+  log('INSTRUMENTAL', 'back to the start' + (dropAt !== null ? ', the acapella drops at ' + dropAt.toFixed(2) + ' s' : ''));
+});
+$('tAcTop').addEventListener('click', () => {
+  if (!aca) { log('ACAPELLA', 'pick an acapella first'); return; }
+  voiceSeek(0);
+});
+$('lcd').classList.toggle('smashy', mode !== 'karaoke');
+
 /* ===== LIVE KARAOKE MODE ===== */
 let stream = null, busy = false, karaokeTimer = null, live = null, knMs = 0;
 function syncState(t) {}
@@ -2020,6 +2202,25 @@ document.querySelectorAll('[data-kn]').forEach(b => b.addEventListener('click', 
   renderKn(); lastIdx = -2;
 }));
 
+/* the mic is only open while a clip or a sample is recording; it closes right after, so it never runs in the background */
+function closeMic() {
+  if (!stream) return;
+  try { stream.getTracks().forEach(t => t.stop()); } catch (e) {}
+  stream = null;
+}
+function closeMicIfIdle() { if (!sampling && !busy && !liveBusy) closeMic(); }
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    if (karaokeTimer) { clearTimeout(karaokeTimer); karaokeTimer = null; }
+    if (liveTimer) { clearTimeout(liveTimer); liveTimer = null; }
+    if (sampling) stopSample();
+    closeMic();
+  } else {
+    if (mode === 'karaoke' && live && $('followToggle').checked && !karaokeTimer) scheduleListen(8000);
+    if (mode === 'live' && liveSong && $('liveFollow').checked && !liveTimer) scheduleLive(8000);
+  }
+});
+window.addEventListener('pagehide', () => closeMic());
 async function openMic() {
   if (stream) return true;
   try {
@@ -2052,6 +2253,7 @@ async function identify() {
   setLink('busy', 'LISTENING');
   const capturedAt = now();
   const blob = await recordClip();
+  if (!sampling) closeMic();
   let data = null;
   try {
     const form = new FormData();
@@ -2166,6 +2368,7 @@ async function liveIdentify() {
   let data = null;
   try {
     const blob = await Promise.race([recordClip(), new Promise(r => setTimeout(() => r(null), CLIP_MS + 4000))]);
+    if (!sampling) closeMic();
     if (!blob) throw new Error('mic');
     const form = new FormData();
     form.append('audio', blob, 'clip.webm');
@@ -2176,6 +2379,7 @@ async function liveIdentify() {
     data = await (await fetch('/api/recognize', { method: 'POST', body: form, signal: ctl.signal })).json();
     clearTimeout(kill);
   } catch (e) { data = { error: e && e.message === 'mic' ? 'the mic did not answer' : 'no answer from the song finder' }; }
+  if (!sampling) closeMic();
   liveBusy = false;
   $('liveListenLabel').textContent = 'LISTEN';
   if (gen !== liveGen) { if (mode === 'live') setTimeout(liveIdentify, 200); return; }
@@ -2595,6 +2799,7 @@ function stopSample() {
   try { sampRec.stop(); } catch (e) { finishSample(); }
 }
 function finishSample() {
+  if (!busy && !liveBusy) closeMic();
   if (!sampRecipe) return;
   const name = 'sample-' + stamp();
   const r = Object.assign({ name, savedAt: Date.now(), seconds: Math.round((Date.now() - sampStartedAt) / 100) / 10 }, sampRecipe);
