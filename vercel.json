@@ -36,6 +36,10 @@
     {
       "source": "/api/energy",
       "destination": "https://offset-listener.vercel.app/api/energy"
+    },
+    {
+      "source": "/api/bender",
+      "destination": "https://offset-listener.vercel.app/api/bender"
     }
   ],
   "headers": [

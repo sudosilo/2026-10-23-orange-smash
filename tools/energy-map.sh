@@ -35,6 +35,7 @@ while true; do
   vids=$(curl -s "$API?queue=1&n=4" | jq -r '.vids[]?')
   if [ -z "$vids" ]; then echo "nothing left to map, $done_count done this run"; break; fi
   for v in $vids; do
+    bash "$(dirname "$0")/bender-relay.sh"
     map_one "$v" && done_count=$((done_count + 1))
     sleep $((2 + RANDOM % 3))
   done

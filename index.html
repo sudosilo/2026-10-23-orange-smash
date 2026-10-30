@@ -2417,27 +2417,28 @@ $('swapBtn').addEventListener('click', async () => {
 const BENDER = 'https://smash-bender.167-233-137-169.sslip.io';
 function ytUrl(vid) { return 'https://www.youtube.com/watch?v=' + vid; }
 function benderName(a, b) { return ((a || 'beat') + ' x ' + (b || 'voice')).replace(/\(.*?\)|\[.*?\]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60); }
+/* Frankfurt cannot reach YouTube, so the job waits in a queue and a phone running the relay downloads both tracks and uploads them as files */
 async function sendToBender(o, say) {
-  const fd = new FormData();
-  fd.append('project', o.project);
-  fd.append('song_one', o.songOne);
-  fd.append('song_two', o.songTwo);
-  fd.append('seconds', String(o.seconds || 45));
-  fd.append('source', 'smash director');
-  fd.append('instrumental_url', ytUrl(o.instVid));
-  fd.append('acapella_url', ytUrl(o.acaVid));
-  say('Sending to Smash Bender');
-  let d = null, status = 0;
+  let q = null;
   try {
-    const ctl = new AbortController(); const kill = setTimeout(() => ctl.abort(), 90000);
-    const res = await fetch(BENDER + '/api/import', { method: 'POST', body: fd, signal: ctl.signal });
-    clearTimeout(kill);
-    status = res.status;
-    d = await res.json().catch(() => null);
-  } catch (e) { say('Could not reach Smash Bender, the server may be down'); return null; }
-  if (!d || status >= 400) { say('Smash Bender turned it down: ' + ((d && (d.detail || d.error)) || ('error ' + status))); return null; }
-  tl('share', o.songTwo, null, null, { bender: d.job, project: d.project });
-  return d;
+    q = await (await fetch('/api/bender', { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'queue', project: o.project, song_one: o.songOne, song_two: o.songTwo, seconds: o.seconds || 45, inst: o.instVid, aca: o.acaVid }) })).json();
+  } catch (e) {}
+  if (!q || !q.id) { say('Could not queue it for Smash Bender' + (q && q.error ? ': ' + q.error : '')); return null; }
+  say('Queued for Smash Bender. Waiting for a phone running the relay to fetch both songs');
+  const started = Date.now();
+  while (Date.now() - started < 20 * 60 * 1000) {
+    await new Promise(r => setTimeout(r, 4000));
+    let st = null;
+    try { st = await (await fetch('/api/bender?id=' + q.id)).json(); } catch (e) { continue; }
+    if (!st) continue;
+    if (st.status === 'downloading') say('A phone is downloading both songs and sending them to Smash Bender');
+    else if (st.status === 'queued') say('Queued for Smash Bender' + (st.ahead ? ', ' + st.ahead + ' ahead' : '') + '. Waiting for a phone running the relay');
+    else if (st.status === 'failed') { say('Smash Bender job failed: ' + (st.error || 'unknown')); return null; }
+    else if (st.status === 'sent') { tl('share', o.songTwo, null, null, { bender: st.job, project: st.slug }); return { job: st.job, project: st.slug, open: st.open }; }
+  }
+  say('Still waiting after 20 minutes, no phone picked it up. It stays queued for two days');
+  return null;
 }
 function benderLink(box, d) {
   const url = d.open || (BENDER + '/?project=' + encodeURIComponent(d.project || ''));
@@ -2447,8 +2448,8 @@ $('benderBtn').addEventListener('click', async () => {
   const box = $('benderMsg');
   const say = (t) => { box.textContent = t; log('SMASH BENDER', t); };
   if (!tune || !aca) { say('Load an instrumental and an acapella first'); return; }
-  const one = songOfTune(tune), two = words ? words.title + (words.artist ? ' ' + words.artist : '') : aca.title;
-  const songOne = (one.title + ' ' + one.artist).trim() || tune.title;
+  const one = songOfTune(tune), two = words ? (words.artist ? words.artist + ', ' : '') + words.title : aca.title;
+  const songOne = one.artist ? one.artist + ', ' + one.title : (one.title || tune.title);
   $('benderBtn').classList.add('busy');
   const d = await sendToBender({ project: benderName(one.title || tune.title, words ? words.title : aca.title), songOne, songTwo: two, instVid: tune.videoId, acaVid: aca.videoId, seconds: 45 }, say);
   $('benderBtn').classList.remove('busy');
@@ -3560,9 +3561,9 @@ function renderSamples() {
       bend.addEventListener('click', async () => {
         const say = (t) => log('SMASH BENDER', t);
         const one = songOfTune({ title: r.tune.title, channel: '' });
-        const two = r.words ? r.words.title + (r.words.artist ? ' ' + r.words.artist : '') : r.aca.title;
+        const two = r.words ? (r.words.artist ? r.words.artist + ', ' : '') + r.words.title : r.aca.title;
         const secs = typeof r.end === 'number' && typeof r.start === 'number' ? Math.max(10, Math.min(240, Math.ceil(r.end - r.start + 10))) : 45;
-        const d = await sendToBender({ project: benderName(one.title || r.tune.title, r.words ? r.words.title : r.aca.title), songOne: (one.title + ' ' + one.artist).trim(), songTwo: two, instVid: r.tune.videoId, acaVid: r.aca.videoId, seconds: secs }, say);
+        const d = await sendToBender({ project: benderName(one.title || r.tune.title, r.words ? r.words.title : r.aca.title), songOne: one.artist ? one.artist + ', ' + one.title : one.title, songTwo: two, instVid: r.tune.videoId, acaVid: r.aca.videoId, seconds: secs }, say);
         if (d) { const m = $('sampMsg'); if (m) benderLink(m, d); }
       });
       row.appendChild(bend);

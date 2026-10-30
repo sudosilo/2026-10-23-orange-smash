@@ -21,7 +21,13 @@ main() {
   termux-wake-lock 2>/dev/null
   if [ "$MODE" = "energy" ]; then
     # map every saved instrumental, then check for new ones every 30 minutes
-    while true; do bash tools/energy-map.sh </dev/null; echo "checking for new beats in 30 minutes"; sleep 1800; done
+    # between map runs it also relays Smash Bender jobs, checking every 20 seconds; it picks up new scripts each round
+    while true; do
+      git fetch -q origin && git reset -q --hard origin/main
+      bash tools/energy-map.sh </dev/null
+      echo "relaying Smash Bender jobs, checking for new beats in 30 minutes"
+      for i in $(seq 1 90); do bash tools/bender-relay.sh </dev/null; sleep 20; done
+    done
   fi
   until bash tools/seed-cache.sh "$MODE" </dev/null && ! grep -q . "$HOME/.smash-seed/stopped" 2>/dev/null; do
     echo "seed paused, starting again in 10 minutes"; sleep 600
