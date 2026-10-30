@@ -113,6 +113,9 @@
   .swapBtn svg { width: 18px; height: 18px; fill: currentColor; }
   .swapBtn:active { transform: translateY(1px); box-shadow: none; }
   .swapBtn.busy { opacity: .5; }
+  .swapMsg { text-align: center; font-size: 11px; color: var(--accent); min-height: 0; }
+  .swapMsg:empty { display: none; }
+  #lcd.liveMode .swapMsg { display: none; }
   #lcd.liveMode .swapRow { display: none; }
   .miniLyr { margin-top: 4px; font-size: 12px; color: var(--lcd-dim); min-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .miniLyr.chorus { color: var(--accent); }
@@ -355,6 +358,7 @@
       <div class="trkRow"><button class="trkTop" id="tInTop" aria-label="Instrumental to the start"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button><div class="sbar" id="tInBar"><div class="fill" id="tInFill"></div><div class="mark" id="tInMark"></div></div><span class="trkTime" id="tInTime">0:00</span></div>
     </div>
     <div class="swapRow" id="swapRow"><button class="swapBtn" id="swapBtn" aria-label="Swap: the acapella song becomes the instrumental and the instrumental song becomes the acapella"><svg viewBox="0 0 24 24"><path d="M7 3 3 7h3v9h2V7h3zm10 18 4-4h-3V8h-2v9h-3z"/></svg><span>SWAP</span></button></div>
+    <div class="swapMsg" id="swapMsg"></div>
     <div class="trk aca">
       <div class="trkHead"><b>ACAPELLA</b><span class="trkName" id="tAcName">Pick an acapella</span><span class="trkBpm" id="tAcBpm"></span></div>
       <div class="trkRow"><button class="trkTop" id="tAcTop" aria-label="Acapella to the start"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button><div class="sbar" id="tAcBar"><div class="fill" id="tAcFill"></div><div class="mark" id="tAcMark"></div></div><span class="trkTime" id="tAcTime">0:00</span></div>
@@ -2329,60 +2333,83 @@ $('tAcTop').addEventListener('click', () => {
 $('lcd').classList.toggle('smashy', mode !== 'karaoke');
 
 /* SWAP: the acapella's song becomes the instrumental and the instrumental's song becomes the acapella; pressing it again goes straight back */
-let swapMemo = null, swapBusy = false;
+let swapMemo = null, swapBusy = false, swapMsgTimer = null;
+function swapSay(t, hold) { $('swapMsg').textContent = t || ''; clearTimeout(swapMsgTimer); if (t && !hold) swapMsgTimer = setTimeout(() => { $('swapMsg').textContent = ''; }, 9000); log('SWAP', t || ''); }
 function swapSnap() {
-  return { tune: tune ? Object.assign({}, tune) : null, words: wordsSrc ? Object.assign({}, wordsSrc) : null, aca: aca ? Object.assign({}, aca) : null,
-    tb: parseFloat($('tuneBpm').value) || null, wb: parseFloat($('wordsBpm').value) || null, fold };
+  return { tune: tune ? Object.assign({}, tune) : null, words: words ? { title: words.title, artist: words.artist, synced: wordsSrc && wordsSrc.title === words.title ? wordsSrc.synced : null, lines: words.lines } : null,
+    aca: aca ? Object.assign({}, aca) : null, tb: parseFloat($('tuneBpm').value) || null, wb: parseFloat($('wordsBpm').value) || null, fold };
 }
 function swapRestore(st) {
   fold = st.fold || 1; document.querySelectorAll('[data-fold]').forEach(x => x.classList.toggle('on', parseFloat(x.getAttribute('data-fold')) === fold));
   pickTune(Object.assign({}, st.tune, { bpm: st.tb }));
-  pickWords(Object.assign({}, st.words, { bpm: st.wb }), true);
+  if (st.words.synced) pickWords({ title: st.words.title, artist: st.words.artist, synced: st.words.synced, bpm: st.wb }, true);
   if (st.aca) pickAca(st.aca);
 }
+const normT = (x) => (x || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 function songOfTune(t) {
   const sp = splitYt(t.title, t.channel);
-  const clean = (x) => (x || '').replace(/\(.*?\)|\[.*?\]/g, ' ').replace(/\b(official|instrumental|karaoke|backing track|no vocals|with lyrics|lyrics?|audio|video|hd|hq|remaster(ed)?|version|beat)\b/gi, ' ').replace(/[|\-]+\s*$/, '').replace(/\s+/g, ' ').trim();
+  const clean = (x) => (x || '').replace(/\(.*?\)|\[.*?\]/g, ' ').replace(/\b(official|instrumental|karaoke|backing track|no vocals|with lyrics|lyrics?|audio|video|hd|hq|4k|remaster(ed)?|version|beat|vevo|topic)\b/gi, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[|\-]+\s*$/, '').replace(/\s+/g, ' ').trim();
   return { title: clean(sp.title), artist: clean(sp.artist) };
+}
+/* timed lyrics for the song behind an instrumental upload: try title and artist, then searches, and keep the closest title */
+async function lyricsForTune(x) {
+  if (x.artist) { const l = await lyricsFor(x); if (l) return l; }
+  for (const q of [(x.title + ' ' + x.artist).trim(), x.title]) {
+    if (!q) continue;
+    let d = null;
+    try { d = await (await fetch('/api/lyrics?q=' + encodeURIComponent(q))).json(); } catch (e) {}
+    const rows = (d && d.results ? d.results : []).filter(r => r.synced);
+    if (!rows.length) continue;
+    const want = normT(x.title), art = normT(x.artist);
+    rows.sort((a, b) => {
+      const sa = (normT(a.title) === want ? 2 : normT(a.title).includes(want) || want.includes(normT(a.title)) ? 1 : 0) + (art && normT(a.artist).split(' ').some(w => w.length > 2 && art.includes(w)) ? 1 : 0);
+      const sb = (normT(b.title) === want ? 2 : normT(b.title).includes(want) || want.includes(normT(b.title)) ? 1 : 0) + (art && normT(b.artist).split(' ').some(w => w.length > 2 && art.includes(w)) ? 1 : 0);
+      return sb - sa;
+    });
+    return rows[0];
+  }
+  return null;
+}
+async function instForSong(song) {
+  let d = null;
+  try { d = await (await ytSearch(encodeURIComponent(song.title + ' ' + song.artist + ' instrumental'))).json(); } catch (e) {}
+  if (d && d.error && !(d.results && d.results.length)) return { error: /quota/i.test(d.error) ? 'YouTube searches are used up for today, a saved song still works' : d.error };
+  const plain = noVocals(song.title, song.artist);
+  const rows = (d && d.results ? d.results : []).filter(r => plain || /instrumental|karaoke|no vocals|backing track|beat/i.test(decodeHtml(r.title)));
+  return rows.find(r => titleIn(r.title, song.title)) || rows[0] || null;
 }
 $('swapBtn').addEventListener('click', async () => {
   if (swapBusy) return;
-  if (!tune || !wordsSrc) { log('SWAP', 'load an instrumental and an acapella first'); return; }
+  if (!tune || !words) { swapSay('Load an instrumental and an acapella first'); return; }
   const before = swapSnap();
   /* going back: use the exact uploads from before the last swap */
-  if (swapMemo && swapMemo.after.tune && swapMemo.after.words && swapMemo.after.tune.videoId === tune.videoId && swapMemo.after.words.title === wordsSrc.title) {
+  if (swapMemo && swapMemo.after && swapMemo.after.tune && swapMemo.after.words && swapMemo.after.tune.videoId === tune.videoId && swapMemo.after.words.title === words.title && swapMemo.before.words.synced) {
     const back = swapMemo.before;
     swapMemo = { before, after: back };
     pauseTune(); swapRestore(back);
-    log('SWAP', 'swapped back');
+    swapSay('Swapped back');
     return;
   }
   swapBusy = true; $('swapBtn').classList.add('busy');
-  log('SWAP', 'finding ' + wordsSrc.title + ' as an instrumental and the other song as an acapella', 0);
+  const voiceSong = { title: words.title, artist: words.artist };
+  swapSay('Finding ' + voiceSong.title + ' as an instrumental', true);
   try {
     const x = songOfTune(tune);
-    const [inst, lyr] = await Promise.all([
-      instVideoFor({ title: wordsSrc.title, artist: wordsSrc.artist }),
-      (async () => {
-        let l = x.artist ? await lyricsFor(x) : null;
-        if (!l) { try { const d = await (await fetch('/api/lyrics?q=' + encodeURIComponent((x.title + ' ' + x.artist).trim()))).json(); l = d && d.results && d.results[0]; } catch (e) {} }
-        return l && l.synced ? l : null;
-      })()
-    ]);
-    if (!inst) { log('SWAP', 'no instrumental upload of ' + wordsSrc.title + ' turned up, nothing changed'); return; }
-    if (!lyr) { log('SWAP', 'no timed lyrics for ' + (x.title || 'the instrumental song') + ' turned up, nothing changed'); return; }
+    const [inst, lyr] = await Promise.all([instForSong(voiceSong), lyricsForTune(x)]);
+    if (!inst || inst.error) { swapSay((inst && inst.error) || 'No instrumental upload of ' + voiceSong.title + ' turned up, nothing changed'); return; }
+    if (!lyr) { swapSay('No timed lyrics for ' + (x.title || 'the instrumental song') + ' turned up, nothing changed'); return; }
     pauseTune();
     fold = 1; document.querySelectorAll('[data-fold]').forEach(b => b.classList.toggle('on', parseFloat(b.getAttribute('data-fold')) === 1));
     pickTune({ videoId: inst.videoId, title: decodeHtml(inst.title), channel: decodeHtml(inst.channel), bpm: before.wb ? before.wb * (before.fold || 1) : undefined });
     pickWords(Object.assign({}, lyr, { bpm: before.tb || undefined }));
     swapMemo = { before, after: null };
-    /* remember the result once the acapella upload is found, so the next press goes straight back */
     const waitAca = setInterval(() => { if (aca || !swapMemo) { clearInterval(waitAca); if (swapMemo && !swapMemo.after) swapMemo.after = swapSnap(); } }, 300);
     setTimeout(() => clearInterval(waitAca), 15000);
-    log('SWAP', 'swapped: ' + lyr.title + ' is the acapella, ' + wordsSrc.title + ' is the instrumental, tap drop on the beat');
+    swapSay('Swapped: ' + lyr.title + ' is the acapella, ' + voiceSong.title + ' is the instrumental. Tap drop on the beat');
+  } catch (e) {
+    swapSay('Swap failed, nothing changed');
   } finally { swapBusy = false; $('swapBtn').classList.remove('busy'); }
 });
-
 /* ===== QUADRO SMASH: two beats and two voices, cut together clip by clip on two lanes ===== */
 const Q_LABELS = ['BEAT A', 'BEAT B', 'VOICE A', 'VOICE B'];
 const Q_KIND = ['inst', 'inst', 'aca', 'aca'];
