@@ -2422,7 +2422,7 @@ async function sendToBender(o, say) {
   let q = null;
   try {
     q = await (await fetch('/api/bender', { method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ action: 'queue', project: o.project, song_one: o.songOne, song_two: o.songTwo, seconds: o.seconds || 45, inst: o.instVid, aca: o.acaVid }) })).json();
+      body: JSON.stringify({ action: 'queue', project: o.project, song_one: o.songOne, song_two: o.songTwo, seconds: o.seconds || 45, music_start: o.musicStart || 0, voice_start: o.voiceStart || 0, inst: o.instVid, aca: o.acaVid }) })).json();
   } catch (e) {}
   if (!q || !q.id) { say('Could not queue it for Smash Bender' + (q && q.error ? ': ' + q.error : '')); return null; }
   say('Queued for Smash Bender. Waiting for a phone running the relay to fetch both songs');
@@ -2440,6 +2440,13 @@ async function sendToBender(o, say) {
   say('Still waiting after 20 minutes, no phone picked it up. It stays queued for two days');
   return null;
 }
+/* where each song's clip starts so the two line up: the clip begins at the drop, or later if the sample starts after it */
+function benderStarts(start, end, drop, cue, shift, rate) {
+  if (typeof drop !== 'number') return { musicStart: Math.max(0, start || 0), voiceStart: 0, seconds: end > start ? Math.ceil(end - start + 10) : 45 };
+  const T = Math.max(start || 0, drop);
+  const voice = (cue || 0) + (T - drop) * (rate || 1) + (shift || 0);
+  return { musicStart: Math.round(T * 100) / 100, voiceStart: Math.max(0, Math.round(voice * 100) / 100), seconds: end > T ? Math.ceil(end - T + 10) : 45 };
+}
 function benderLink(box, d) {
   const url = d.open || (BENDER + '/?project=' + encodeURIComponent(d.project || ''));
   box.innerHTML = 'Sent to Smash Bender, job ' + esc(d.job || '') + '. Open <a href="' + esc(url) + '" target="_blank" rel="noopener">the project</a> to follow it';
@@ -2451,7 +2458,8 @@ $('benderBtn').addEventListener('click', async () => {
   const one = songOfTune(tune), two = words ? (words.artist ? words.artist + ', ' : '') + words.title : aca.title;
   const songOne = one.artist ? one.artist + ', ' + one.title : (one.title || tune.title);
   $('benderBtn').classList.add('busy');
-  const d = await sendToBender({ project: benderName(one.title || tune.title, words ? words.title : aca.title), songOne, songTwo: two, instVid: tune.videoId, acaVid: aca.videoId, seconds: 45 }, say);
+  const st = benderStarts(0, 0, dropAt, cueT, acaShift, appliedRate());
+  const d = await sendToBender(Object.assign({ project: benderName(one.title || tune.title, words ? words.title : aca.title), songOne, songTwo: two, instVid: tune.videoId, acaVid: aca.videoId }, st, { seconds: 45 }), say);
   $('benderBtn').classList.remove('busy');
   if (d) benderLink(box, d);
 });
@@ -3562,8 +3570,10 @@ function renderSamples() {
         const say = (t) => log('SMASH BENDER', t);
         const one = songOfTune({ title: r.tune.title, channel: '' });
         const two = r.words ? (r.words.artist ? r.words.artist + ', ' : '') + r.words.title : r.aca.title;
-        const secs = typeof r.end === 'number' && typeof r.start === 'number' ? Math.max(10, Math.min(240, Math.ceil(r.end - r.start + 10))) : 45;
-        const d = await sendToBender({ project: benderName(one.title || r.tune.title, r.words ? r.words.title : r.aca.title), songOne: one.artist ? one.artist + ', ' + one.title : one.title, songTwo: two, instVid: r.tune.videoId, acaVid: r.aca.videoId, seconds: secs }, say);
+        const rate = r.stretch !== false && r.tuneBpm && r.wordsBpm ? r.tuneBpm / (r.wordsBpm * (r.fold || 1)) : 1;
+        const st = benderStarts(r.start, r.end, r.dropAt, r.cueT, r.acaShift, rate);
+        st.seconds = Math.max(10, Math.min(240, st.seconds));
+        const d = await sendToBender(Object.assign({ project: benderName(one.title || r.tune.title, r.words ? r.words.title : r.aca.title), songOne: one.artist ? one.artist + ', ' + one.title : one.title, songTwo: two, instVid: r.tune.videoId, acaVid: r.aca.videoId }, st), say);
         if (d) { const m = $('sampMsg'); if (m) benderLink(m, d); }
       });
       row.appendChild(bend);

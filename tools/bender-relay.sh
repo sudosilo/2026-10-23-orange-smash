@@ -23,6 +23,8 @@ out=$(curl -s -w '\n%{http_code}' -X POST "$BENDER" \
   -F "song_one=$(printf '%s' "$job" | jq -r .song_one)" \
   -F "song_two=$(printf '%s' "$job" | jq -r .song_two)" \
   -F "seconds=$(printf '%s' "$job" | jq -r .seconds)" \
+  -F "music_start=$(printf '%s' "$job" | jq -r '.music_start // 0')" \
+  -F "voice_start=$(printf '%s' "$job" | jq -r '.voice_start // 0')" \
   -F "source=smash director" \
   -F "instrumental=@$inst" -F "acapella=@$aca")
 code=$(printf '%s' "$out" | tail -n 1); body=$(printf '%s' "$out" | sed '$d')
