@@ -242,6 +242,29 @@
   .msRow { display:flex; align-items:center; gap:8px; padding:8px 0; border-top:1px solid var(--line, #ddd8cc); font-size:14px; }
   .msRow .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .msRow label { display:flex; align-items:center; gap:4px; font:11px ui-monospace,Menlo,monospace; letter-spacing:1px; }
+  .c-quadro { border-left-color: #4a5fc4; } .c-quadro .cardTitle { color: #4a5fc4; }
+  .qTop { margin-top: 12px; }
+  .qNow { font-size: 11px; color: var(--lcd-dim); margin-top: 6px; min-height: 30px; line-height: 1.4; }
+  .qSlot { border-left-width: 6px; }
+  .qSlot.k0 { border-left-color: #3f7fbf; } .qSlot.k1 { border-left-color: #2a7f6f; } .qSlot.k2 { border-left-color: #c4561f; } .qSlot.k3 { border-left-color: #b8325a; }
+  .qSlot.k0 .cardTitle { color: #3f7fbf; } .qSlot.k1 .cardTitle { color: #2a7f6f; } .qSlot.k2 .cardTitle { color: #c4561f; } .qSlot.k3 .cardTitle { color: #b8325a; }
+  .qScreen { position: relative; width: 100%; max-width: 220px; aspect-ratio: 16 / 9; border-radius: 6px; overflow: hidden; background: var(--lcd-edge); }
+  .qScreen iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; }
+  .qMarks { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
+  .qMarks .seg { padding: 6px 8px; font-size: 10px; }
+  .qLines { max-height: 150px; overflow-y: auto; margin-top: 6px; border-top: 1px dashed var(--chassis-edge); }
+  .qLine { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 5px 2px; font-size: 13px; color: var(--ink); border-bottom: 1px solid rgba(0,0,0,.05); }
+  .qLine span { font: 11px ui-monospace, Menlo, monospace; color: var(--ink-faint); margin-right: 6px; }
+  .qClip { display: flex; align-items: center; gap: 8px; padding: 7px 6px; border-radius: 8px; border: 1px solid transparent; font-size: 13px; cursor: pointer; }
+  .qClip.sel { border-color: #4a5fc4; background: rgba(74,95,196,.07); }
+  .qClip.now { background: rgba(74,95,196,.15); }
+  .qChip { flex: 0 0 auto; font: 700 10px ui-monospace, Menlo, monospace; letter-spacing: 1px; color: #fff; border-radius: 4px; padding: 3px 5px; }
+  .qChip.k0 { background: #3f7fbf; } .qChip.k1 { background: #2a7f6f; } .qChip.k2 { background: #c4561f; } .qChip.k3 { background: #b8325a; } .qChip.rest { background: #9a978f; }
+  .qClip .d { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+  .qNudge { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-top: 8px; }
+  .qNudge b { width: 44px; font-size: 11px; letter-spacing: 1px; }
+  .qNudge .seg { padding: 6px 7px; font-size: 11px; }
+  .qNudge .v { font: 13px ui-monospace, Menlo, monospace; min-width: 70px; text-align: center; }
   .c-auto { border-left-color: #1f8a8a; } .c-auto .cardTitle { color: #1f8a8a; }
   .autoSide { padding: 6px 0; border-top: 1px solid #e6e2d9; font-size: 13px; }
   .autoPair { display: flex; gap: 6px; margin-top: 4px; }
@@ -277,6 +300,7 @@
     <p><b>Autosmash</b> runs by itself. Pick a BPM, a genre and decade for the beat, and a genre and decade for the voice, then tap Start. It finds an instrumental at that tempo, drops in an acapella from the other genre on the bar, and when that voice finishes the next one comes in. Next voice and Next beat skip ahead.</p>
     <p><b>Samples</b> records whatever is playing. Tap the sample bar to start and again to stop. It saves the sound plus a recipe that rebuilds the smash, and REPLAY plays it back. Signed in, samples go to your profile and show up on every phone.</p>
     <p><b>Artist info</b> pulls the band, members, genres and albums for anyone on screen. Tap an album to see its tracks and use any track as the acapella or the instrumental.</p>
+    <p><b>Quadro smash</b> holds two instrumentals and two acapellas. Load each slot, play it, and use MARK IN and MARK OUT to grab the exact stretch you want, then Add clip. Beat clips go in the beat lane, voice clips go in the voice lane, and each lane plays its clips one after another, so cutting between two voices word by word is just the order of the clips. Tap a clip to fine tune its in and out to a hundredth of a second, hear it alone, or move it. REST adds silence.</p>
     <p><b>Loops</b> repeat a few bars of the instrumental from a start point, or the first few bars of the voice after the drop. They live in the Loops card in Smash.</p>
     <p><b>Multi smash</b> links your own phones on one account. Each phone plays the beat, the voice, or both, and they all follow the same smash. <b>Band room</b> takes a room code so you can smash with someone on another account, one person running the beat and the other the voice. Stomp box instruments like Tapperator can join the same code and play on the same clock.</p>
     <p>Tap any card title to fold it away.</p>
@@ -301,6 +325,7 @@
   <button class="seg" data-mode="karaoke">LIVE KARAOKE</button>
   <button class="seg" data-mode="live">LIVE SMASH</button>
   <button class="seg" data-mode="auto">AUTOSMASH</button>
+  <button class="seg" data-mode="quadro">QUADRO SMASH</button>
   <button class="seg" data-view="samples">SAMPLES</button>
   <button class="seg" data-view="multi">MULTI SMASH</button>
 </div>
@@ -380,6 +405,38 @@
   </div>
 </div>
 <datalist id="genreList"><option value="industrial"><option value="hard rock"><option value="heavy metal"><option value="hip hop"><option value="rap"><option value="pop"><option value="synthpop"><option value="new wave"><option value="funk"><option value="disco"><option value="soul"><option value="r&amp;b"><option value="rock"><option value="classic rock"><option value="punk"><option value="grunge"><option value="alternative rock"><option value="house"><option value="techno"><option value="drum and bass"><option value="dubstep"><option value="trap"><option value="reggae"><option value="country"><option value="blues"><option value="jazz"><option value="electronic"><option value="indie rock"><option value="emo"><option value="trip hop"></datalist>
+
+<div id="quadroPanel" class="hide">
+  <div class="lcd mono qTop">
+    <div class="lcdTop"><span>QUADRO SMASH</span><span id="qTag">EMPTY</span></div>
+    <div class="trkRow"><button class="trkTop" id="qToStart" aria-label="Back to the start"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button><div class="sbar" id="qBar"><div class="fill" id="qFill" style="background:#4a5fc4"></div></div><span class="trkTime" id="qTime">0:00.00 / 0:00</span></div>
+    <div class="qNow" id="qNow"></div>
+    <div class="transport" style="margin-top:8px"><button class="key big" id="qPlay" aria-label="Play"><svg viewBox="0 0 24 24"><path d="M7 5v14l12-7z"/></svg></button></div>
+    <div class="toggleRow" style="margin-top:6px"><span>Loop the whole arrangement</span><input type="checkbox" id="qLoop"></div>
+  </div>
+
+  <div id="qSlots"></div>
+
+  <div class="card c-quadro">
+    <div class="cardTitle"><span>Beat lane</span><span class="mono" id="qBeatLen"></span></div>
+    <div id="qBeatLane" class="qLane"></div>
+    <div class="btnRow"><button class="seg" data-qrest="beat">+ REST</button></div>
+  </div>
+  <div class="card c-quadro">
+    <div class="cardTitle"><span>Voice lane</span><span class="mono" id="qVoiceLen"></span></div>
+    <div id="qVoiceLane" class="qLane"></div>
+    <div class="btnRow"><button class="seg" data-qrest="voice">+ REST</button></div>
+  </div>
+  <div class="card c-quadro" id="qEditCard">
+    <div class="cardTitle"><span>Edit clip</span><span class="mono" id="qEditTag">TAP A CLIP</span></div>
+    <div id="qEdit"><span class="rs">Tap a clip in a lane to fine tune it here.</span></div>
+  </div>
+  <div class="card c-quadro">
+    <div class="cardTitle"><span>Arrangement</span><span></span></div>
+    <div style="font-size:12px;color:var(--ink-faint);line-height:1.4">Both lanes start together. Clips in a lane play one after another, so switching between the two voices or the two beats is just the order of the clips. REST is silence for a set time. The next clip warms up silently before its cut so the switch is clean.</div>
+    <div class="btnRow"><button class="seg" id="qClearAll">CLEAR ALL</button></div>
+  </div>
+</div>
 
 <div id="smashPanel">
   <div class="card c-inst">
@@ -692,12 +749,16 @@ function setMode(m) {
   mode = m;
   $('lcd').classList.toggle('smashy', m !== 'karaoke');
   document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('on', b.getAttribute('data-mode') === m));
-  const groups = { smash: ['smashPanel', 'smashTransport', 'smashLabels'], karaoke: ['karaokePanel', 'karaokeTransport', 'karaokeLabels'], live: ['livePanel', 'liveTransport', 'liveLabels'], auto: ['autoPanel'] };
+  const groups = { smash: ['smashPanel', 'smashTransport', 'smashLabels'], karaoke: ['karaokePanel', 'karaokeTransport', 'karaokeLabels'], live: ['livePanel', 'liveTransport', 'liveLabels'], auto: ['autoPanel'], quadro: ['quadroPanel'] };
   const show = new Set(groups[m] || []);
   if (m === 'auto') { show.add('smashTransport'); show.add('smashLabels'); }
   Object.keys(groups).forEach(k => groups[k].forEach(id => $(id).classList.toggle('hide', !show.has(id))));
   if (m !== 'auto' && autoState.on) autoStop();
-  $('sampleBtn').classList.toggle('hide', m === 'karaoke');
+  $('sampleBtn').classList.toggle('hide', m === 'karaoke' || m === 'quadro');
+  $('lcd').classList.toggle('hide', m === 'quadro');
+  ['infoCard', 'statsCard'].forEach(id => { const el = $(id); if (el) el.classList.toggle('hide', m === 'quadro'); });
+  $('ack').classList.toggle('qAck', m === 'quadro');
+  if (m === 'quadro') { qEnter(); return; }
   if (sampling && m === 'karaoke') stopSample();
   clearLyrics();
   pauseTune();
@@ -2038,6 +2099,7 @@ rmRender();
 
 /* ===== switching modes starts clean: nothing from the last mode stays loaded ===== */
 function wipeSession() {
+  if (typeof qStop === 'function') qStop(true);
   if (sampling) stopSample();
   if (autoState.on) autoStop();
   if (karaokeTimer) { clearTimeout(karaokeTimer); karaokeTimer = null; }
@@ -2078,7 +2140,7 @@ function trkPos(p, ready) { try { return p && ready ? p.getCurrentTime() || 0 : 
 let dragBar = null;
 function lineAt(lines, t) { let cur = null; for (const l of lines) { if (l.t <= t + 0.05) cur = l; else break; } return cur; }
 function updateTracks() {
-  if (mode === 'karaoke') return;
+  if (mode === 'karaoke' || mode === 'quadro') return;
   const isLive = mode === 'live';
   const beatObj = isLive ? liveInst : tune, voiceObj = isLive ? donorAca : aca;
   const tb = isLive ? (liveSong && liveSong.bpm) : parseFloat($('tuneBpm').value);
@@ -2194,6 +2256,421 @@ $('tAcTop').addEventListener('click', () => {
   voiceSeek(0);
 });
 $('lcd').classList.toggle('smashy', mode !== 'karaoke');
+
+/* ===== QUADRO SMASH: two beats and two voices, cut together clip by clip on two lanes ===== */
+const Q_LABELS = ['BEAT A', 'BEAT B', 'VOICE A', 'VOICE B'];
+const Q_KIND = ['inst', 'inst', 'aca', 'aca'];
+function qBlank() { return { slots: [0, 1, 2, 3].map(i => ({ vid: null, title: '', song: null, lines: null, vol: 100, mIn: null, mOut: null, alts: [] })), lanes: { beat: [], voice: [] } }; }
+let Q = recall('quadro') || qBlank();
+if (!Q.slots || Q.slots.length !== 4 || !Q.lanes) Q = qBlank();
+const qp = [null, null, null, null], qReady = [false, false, false, false], qState = [-1, -1, -1, -1], qLoaded = [null, null, null, null];
+let qPlaying = false, qT0 = 0, qPaused = 0, qSel = null, qTimer = null, qGrace = [0, 0, 0, 0], qWarm = { beat: -1, voice: -1 }, qCut = { beat: -1, voice: -1 }, qActive = { beat: -1, voice: -1 }, qClipStop = null, qDrag = null, qBuilt = false;
+function qSave() { store('quadro', Q); }
+function f2(t) { t = Math.max(0, t || 0); return Math.floor(t / 60) + ':' + (t % 60).toFixed(2).padStart(5, '0'); }
+function qSegDur(g) { return g.rest != null ? Math.max(0.05, g.rest) : Math.max(0.05, g.outP - g.inP); }
+function qLaneLen(lane) { return Q.lanes[lane].reduce((a, g) => a + qSegDur(g), 0); }
+function qTotal() { return Math.max(qLaneLen('beat'), qLaneLen('voice')); }
+function qLaneAt(lane, t) { let acc = 0; const L = Q.lanes[lane]; for (let i = 0; i < L.length; i++) { const d = qSegDur(L[i]); if (t < acc + d) return { i, g: L[i], start: acc, off: t - acc }; acc += d; } return null; }
+function qNowT() { return qPlaying ? (performance.now() - qT0) / 1000 : qPaused; }
+function qPos(i) { try { return qp[i] && qReady[i] ? qp[i].getCurrentTime() || 0 : 0; } catch (e) { return 0; } }
+function qDur(i) { try { return qp[i] && qReady[i] && qLoaded[i] ? qp[i].getDuration() || 0 : 0; } catch (e) { return 0; } }
+function qVol(i, v) { try { if (qp[i] && qReady[i]) { qp[i].unMute(); qp[i].setVolume(v); } } catch (e) {} }
+function qPause(i) { try { if (qp[i] && qReady[i] && (qState[i] === 1 || qState[i] === 3)) qp[i].pauseVideo(); } catch (e) {} }
+function qSeekP(i, t) { try { qp[i].seekTo(Math.max(0, t), true); } catch (e) {} qGrace[i] = Date.now() + 1200; }
+
+function qEnsure(i, cb) {
+  if (qp[i] && qReady[i]) { cb && cb(); return; }
+  whenYouTubeReady(() => {
+    if (qp[i]) { if (cb) { const w = setInterval(() => { if (qReady[i]) { clearInterval(w); cb(); } }, 100); } return; }
+    qp[i] = new YT.Player('qPlayer' + i, {
+      height: '124', width: '220',
+      playerVars: { controls: 0, playsinline: 1, rel: 0, disablekb: 1, fs: 0, iv_load_policy: 3 },
+      events: {
+        onReady: () => { qReady[i] = true; cb && cb(); },
+        onStateChange: (e) => { qState[i] = e.data; },
+        onError: () => { log(Q_LABELS[i], 'this upload blocks embedded play, pick another'); }
+      }
+    });
+  });
+}
+function qLoad(i, autoplayAt) {
+  const sl = Q.slots[i];
+  if (!sl.vid) return;
+  qEnsure(i, () => {
+    if (qLoaded[i] === sl.vid && autoplayAt == null) return;
+    qLoaded[i] = sl.vid;
+    try { if (autoplayAt != null) qp[i].loadVideoById(sl.vid, autoplayAt); else qp[i].cueVideoById(sl.vid, sl.mIn || 0); } catch (e) {}
+  });
+}
+
+/* ---------- slot cards ---------- */
+function qBuild() {
+  if (qBuilt) return;
+  qBuilt = true;
+  const box = $('qSlots');
+  box.innerHTML = '';
+  [0, 1, 2, 3].forEach(i => {
+    const c = document.createElement('div');
+    c.className = 'card qSlot k' + i;
+    c.id = 'qSlot' + i;
+    c.innerHTML =
+      '<div class="cardTitle"><span>' + Q_LABELS[i] + (Q_KIND[i] === 'inst' ? ' instrumental' : ' acapella') + '</span><span class="mono" id="qSt' + i + '">EMPTY</span></div>' +
+      '<div class="searchRow"><input id="qIn' + i + '" placeholder="' + (Q_KIND[i] === 'inst' ? 'Song or artist' : 'Song or artist, with timed lyrics') + '"><button class="sbtn" id="qFind' + i + '">Find</button></div>' +
+      '<div id="qRes' + i + '"></div>' +
+      '<div class="rs" id="qName' + i + '" style="margin-top:6px"></div>' +
+      '<div class="qScreen" style="margin-top:6px"><div id="qPlayer' + i + '"></div></div>' +
+      '<div class="trkRow"><button class="trkTop" id="qPP' + i + '" aria-label="Play or pause"><svg viewBox="0 0 24 24"><path d="M7 5v14l12-7z"/></svg></button><div class="sbar" id="qSb' + i + '"><div class="fill" id="qSf' + i + '"></div></div><span class="trkTime" id="qSt2' + i + '">0:00.00</span></div>' +
+      '<div class="qMarks"><button class="seg" data-qn="-1">-1</button><button class="seg" data-qn="-0.1">-.1</button><button class="seg" data-qn="0.1">+.1</button><button class="seg" data-qn="1">+1</button>' +
+      '<span style="flex:1"></span><span class="rs">vol</span><input type="range" min="0" max="100" id="qV' + i + '" style="width:80px"></div>' +
+      '<div class="qMarks"><button class="seg" id="qMI' + i + '">MARK IN</button><span class="mono" id="qMIv' + i + '">--</span><button class="seg" id="qMO' + i + '">MARK OUT</button><span class="mono" id="qMOv' + i + '">--</span><span style="flex:1"></span><button class="sbtn go" id="qAdd' + i + '">Add clip</button></div>' +
+      '<div class="qLines" id="qLines' + i + '"></div>';
+    box.appendChild(c);
+    $('qFind' + i).addEventListener('click', () => qFind(i));
+    $('qIn' + i).addEventListener('keydown', (e) => { if (e.key === 'Enter') qFind(i); });
+    $('qPP' + i).addEventListener('click', () => qAudition(i));
+    $('qV' + i).value = Q.slots[i].vol;
+    $('qV' + i).addEventListener('input', () => { Q.slots[i].vol = +$('qV' + i).value; qSave(); if (qState[i] === 1) qVol(i, Q.slots[i].vol); });
+    c.querySelectorAll('[data-qn]').forEach(b => b.addEventListener('click', () => { if (!qReady[i]) return; qSeekP(i, qPos(i) + parseFloat(b.getAttribute('data-qn'))); }));
+    $('qMI' + i).addEventListener('click', () => { if (!qLoaded[i]) return; Q.slots[i].mIn = Math.round(qPos(i) * 100) / 100; qSave(); qPaintSlot(i); });
+    $('qMO' + i).addEventListener('click', () => { if (!qLoaded[i]) return; Q.slots[i].mOut = Math.round(qPos(i) * 100) / 100; qSave(); qPaintSlot(i); });
+    $('qAdd' + i).addEventListener('click', () => qAddClip(i));
+    const bar = $('qSb' + i);
+    bar.addEventListener('pointerdown', (e) => { const d = qDur(i); if (!d) return; qDrag = { i, t: barFrac(bar, e) * d }; try { bar.setPointerCapture(e.pointerId); } catch (err) {} });
+    bar.addEventListener('pointermove', (e) => { if (qDrag && qDrag.i === i) qDrag.t = barFrac(bar, e) * qDur(i); });
+    bar.addEventListener('pointerup', (e) => { if (!qDrag || qDrag.i !== i) return; const t = barFrac(bar, e) * qDur(i); qDrag = null; qSeekP(i, t); });
+    bar.addEventListener('pointercancel', () => { qDrag = null; });
+    qPaintSlot(i);
+  });
+}
+function qPaintSlot(i) {
+  const sl = Q.slots[i];
+  $('qName' + i).textContent = sl.vid ? (sl.song ? sl.song.title + ' / ' + sl.song.artist + '  ' : '') + sl.title : '';
+  $('qMIv' + i).textContent = sl.mIn != null ? f2(sl.mIn) : '--';
+  $('qMOv' + i).textContent = sl.mOut != null ? f2(sl.mOut) : '--';
+  const lb = $('qLines' + i);
+  lb.innerHTML = '';
+  if (sl.lines && sl.lines.length) {
+    sl.lines.filter(l => l.text).forEach(l => {
+      const b = document.createElement('button');
+      b.className = 'qLine';
+      b.innerHTML = '<span>' + f2(l.t) + '</span>' + esc(l.text);
+      b.addEventListener('click', () => { qEnsure(i, () => { qSeekP(i, l.t); }); });
+      lb.appendChild(b);
+    });
+  }
+  lb.style.display = sl.lines && sl.lines.length ? '' : 'none';
+}
+async function qFind(i) {
+  const q = $('qIn' + i).value.trim();
+  if (!q) return;
+  const res = $('qRes' + i);
+  res.innerHTML = '<div class="resultRow"><span class="rs">SEARCHING</span></div>';
+  if (Q_KIND[i] === 'inst') {
+    let d = null;
+    const classical = noVocals(q, '');
+    try { d = await (await ytSearch(encodeURIComponent(q + (classical || /instrumental/i.test(q) ? '' : ' instrumental')))).json(); } catch (e) {}
+    let rows = d && d.results ? d.results : [];
+    const tagged = rows.filter(r => /instrumental|beat|karaoke|no vocals/i.test(decodeHtml(r.title)) || noVocals(decodeHtml(r.title), decodeHtml(r.channel)));
+    if (tagged.length) rows = tagged;
+    qShowVids(i, rows.slice(0, 6), d && d.error);
+    return;
+  }
+  let d = null;
+  try { d = await (await fetch('/api/lyrics?q=' + encodeURIComponent(q))).json(); } catch (e) {}
+  const rows = d && d.results ? d.results : [];
+  res.innerHTML = '';
+  if (!rows.length) { res.innerHTML = '<div class="resultRow"><span class="rs">NO TIMED LYRICS FOUND</span></div>'; return; }
+  rows.slice(0, 8).forEach(r => {
+    const b = document.createElement('button');
+    b.className = 'resultRow';
+    b.innerHTML = '<div class="rt"><div>' + esc(r.title) + '</div><div class="rs">' + esc(r.artist) + ' / ' + fmt(r.durationSeconds) + '</div></div>';
+    b.addEventListener('click', () => qPickSong(i, r));
+    res.appendChild(b);
+  });
+}
+function qShowVids(i, rows, err) {
+  const res = $('qRes' + i);
+  res.innerHTML = '';
+  if (!rows.length) { res.innerHTML = '<div class="resultRow"><span class="rs">' + esc(err || 'NOTHING FOUND') + '</span></div>'; return; }
+  rows.forEach(r => {
+    const b = document.createElement('button');
+    b.className = 'resultRow';
+    b.innerHTML = (r.thumbnail ? '<img alt="" src="' + esc(r.thumbnail) + '">' : '<img alt="">') + '<div class="rt"><div>' + esc(decodeHtml(r.title)) + '</div><div class="rs">' + esc(decodeHtml(r.channel)) + '</div></div>';
+    b.addEventListener('click', () => qPickVid(i, r));
+    res.appendChild(b);
+  });
+}
+async function qPickSong(i, r) {
+  const sl = Q.slots[i];
+  sl.song = { title: r.title, artist: r.artist };
+  sl.lines = parseLrc(r.synced); markChorus(sl.lines);
+  qPaintSlot(i);
+  $('qRes' + i).innerHTML = '<div class="resultRow"><span class="rs">LOOKING FOR THE ACAPELLA</span></div>';
+  let d = null;
+  const voiceOnly = allVoice(r.title, r.artist);
+  try { d = await (await ytSearch(encodeURIComponent(r.title + ' ' + r.artist + ' acapella'))).json(); } catch (e) {}
+  const rows = (d && d.results ? d.results : []).filter(x => ACA_WORDS.test(decodeHtml(x.title)) || (voiceOnly && !/live|reaction|tutorial|karaoke|instrumental/i.test(decodeHtml(x.title))));
+  if (!rows.length) { $('qRes' + i).innerHTML = '<div class="resultRow"><span class="rs">NO VOCAL ONLY UPLOAD FOUND</span></div>'; return; }
+  qPickVid(i, rows[0]);
+  qShowVids(i, rows.slice(1, 5));
+  if (rows.length > 1) $('qRes' + i).insertAdjacentHTML('afterbegin', '<div class="rs" style="margin:4px 0">Other uploads of this acapella</div>');
+}
+function qPickVid(i, r) {
+  const sl = Q.slots[i];
+  if (Q_KIND[i] === 'inst') $('qRes' + i).innerHTML = '';
+  sl.vid = r.videoId; sl.title = decodeHtml(r.title); sl.mIn = null; sl.mOut = null;
+  qSave(); qPaintSlot(i);
+  qLoaded[i] = null; qLoad(i);
+  log(Q_LABELS[i], 'loaded ' + sl.title);
+}
+/* listen to one slot by itself, from wherever its bar is */
+function qAudition(i) {
+  if (!Q.slots[i].vid) { log(Q_LABELS[i], 'find a song first'); return; }
+  if (qPlaying) qPauseAll();
+  qClipStop = null;
+  qEnsure(i, () => {
+    if (qLoaded[i] !== Q.slots[i].vid) { qLoad(i, 0); return; }
+    try { if (qState[i] === 1) qp[i].pauseVideo(); else { qVol(i, Q.slots[i].vol); qp[i].playVideo(); } } catch (e) {}
+  });
+}
+function qAddClip(i) {
+  const sl = Q.slots[i];
+  if (!sl.vid) { log(Q_LABELS[i], 'find a song first'); return; }
+  const d = qDur(i);
+  const inP = sl.mIn != null ? sl.mIn : 0;
+  const outP = sl.mOut != null ? sl.mOut : (Q_KIND[i] === 'inst' && d ? d : inP + 4);
+  if (outP <= inP + 0.04) { log(Q_LABELS[i], 'MARK OUT has to come after MARK IN'); return; }
+  const lane = Q_KIND[i] === 'inst' ? 'beat' : 'voice';
+  Q.lanes[lane].push({ slot: i, inP, outP });
+  qSel = { lane, idx: Q.lanes[lane].length - 1 };
+  sl.mIn = null; sl.mOut = null;
+  qSave(); qPaintSlot(i); qRenderLanes();
+  log(Q_LABELS[i], 'clip ' + f2(inP) + ' to ' + f2(outP) + ' added to the ' + lane + ' lane');
+}
+
+/* ---------- lanes and the clip editor ---------- */
+function qRenderLanes() {
+  const t = qNowT();
+  ['beat', 'voice'].forEach(lane => {
+    const box = $(lane === 'beat' ? 'qBeatLane' : 'qVoiceLane');
+    const L = Q.lanes[lane];
+    $(lane === 'beat' ? 'qBeatLen' : 'qVoiceLen').textContent = L.length ? f2(qLaneLen(lane)) : '';
+    box.innerHTML = L.length ? '' : '<span class="rs">' + (lane === 'beat' ? 'Mark a stretch of BEAT A or B and tap Add clip.' : 'Mark a line of VOICE A or B and tap Add clip, then the next one.') + '</span>';
+    const at = qLaneAt(lane, t);
+    let acc = 0;
+    L.forEach((g, idx) => {
+      const row = document.createElement('div');
+      row.className = 'qClip' + (qSel && qSel.lane === lane && qSel.idx === idx ? ' sel' : '') + (qPlaying && at && at.i === idx ? ' now' : '');
+      const chip = g.rest != null ? '<span class="qChip rest">REST</span>' : '<span class="qChip k' + g.slot + '">' + Q_LABELS[g.slot] + '</span>';
+      const desc = g.rest != null ? g.rest.toFixed(2) + ' s of silence' : f2(g.inP) + ' to ' + f2(g.outP) + ' (' + qSegDur(g).toFixed(2) + ' s)';
+      row.innerHTML = '<span class="mono" style="font-size:10px;color:var(--ink-faint);width:44px">' + f2(acc).replace(/\.\d+$/, '') + '</span>' + chip + '<span class="d">' + desc + '</span>';
+      row.addEventListener('click', () => { qSel = { lane, idx }; qRenderLanes(); qRenderEdit(); });
+      box.appendChild(row);
+      acc += qSegDur(g);
+    });
+  });
+}
+function qRenderEdit() {
+  const box = $('qEdit');
+  const g = qSel && Q.lanes[qSel.lane][qSel.idx];
+  if (!g) { qSel = null; $('qEditTag').textContent = 'TAP A CLIP'; box.innerHTML = '<span class="rs">Tap a clip in a lane to fine tune it here.</span>'; return; }
+  $('qEditTag').textContent = (qSel.lane === 'beat' ? 'BEAT LANE' : 'VOICE LANE') + ' CLIP ' + (qSel.idx + 1);
+  const nud = (key, label, val) => '<div class="qNudge"><b>' + label + '</b><button class="seg" data-qe="' + key + ':-0.1">-.1</button><button class="seg" data-qe="' + key + ':-0.01">-.01</button><span class="v">' + val + '</span><button class="seg" data-qe="' + key + ':0.01">+.01</button><button class="seg" data-qe="' + key + ':0.1">+.1</button></div>';
+  box.innerHTML = (g.rest != null ? nud('rest', 'REST', g.rest.toFixed(2) + ' s')
+    : nud('inP', 'IN', f2(g.inP)) + nud('outP', 'OUT', f2(g.outP)) +
+      '<div class="qNudge"><b></b><button class="seg" data-qx="setin">IN = SLOT BAR</button><button class="seg" data-qx="setout">OUT = SLOT BAR</button></div>') +
+    '<div class="btnRow"><button class="sbtn go" data-qx="hear">Hear clip</button><button class="sbtn" data-qx="from">Play from here</button></div>' +
+    '<div class="btnRow"><button class="seg" data-qx="up">MOVE UP</button><button class="seg" data-qx="down">MOVE DOWN</button><button class="seg" data-qx="dup">COPY</button><button class="seg" data-qx="del">DELETE</button></div>';
+  box.querySelectorAll('[data-qe]').forEach(b => b.addEventListener('click', () => {
+    const [key, d] = b.getAttribute('data-qe').split(':');
+    g[key] = Math.max(key === 'rest' ? 0.05 : 0, Math.round((g[key] + parseFloat(d)) * 100) / 100);
+    if (key === 'inP' && g.inP > g.outP - 0.05) g.inP = Math.round((g.outP - 0.05) * 100) / 100;
+    if (key === 'outP' && g.outP < g.inP + 0.05) g.outP = Math.round((g.inP + 0.05) * 100) / 100;
+    qSave(); qRenderLanes(); qRenderEdit();
+    if (key !== 'rest' && !qPlaying) qEnsure(g.slot, () => qSeekP(g.slot, key === 'inP' ? g.inP : Math.max(0, g.outP - 1)));
+  }));
+  box.querySelectorAll('[data-qx]').forEach(b => b.addEventListener('click', () => {
+    const x = b.getAttribute('data-qx'), L = Q.lanes[qSel.lane], k = qSel.idx;
+    if (x === 'setin' || x === 'setout') { const p = Math.round(qPos(g.slot) * 100) / 100; if (x === 'setin') g.inP = Math.min(p, g.outP - 0.05); else g.outP = Math.max(p, g.inP + 0.05); }
+    else if (x === 'up' && k > 0) { [L[k - 1], L[k]] = [L[k], L[k - 1]]; qSel.idx--; }
+    else if (x === 'down' && k < L.length - 1) { [L[k + 1], L[k]] = [L[k], L[k + 1]]; qSel.idx++; }
+    else if (x === 'dup') { L.splice(k + 1, 0, Object.assign({}, g)); qSel.idx++; }
+    else if (x === 'del') { L.splice(k, 1); qSel = null; }
+    else if (x === 'hear') { qHearClip(g); return; }
+    else if (x === 'from') { let acc = 0; for (let j = 0; j < k; j++) acc += qSegDur(L[j]); qSeekTimeline(Math.max(0, acc - 1)); if (!qPlaying) qPlay(); return; }
+    qSave(); qRenderLanes(); qRenderEdit();
+  }));
+}
+/* play just one clip on its own slot, from its in point to its out point */
+function qHearClip(g) {
+  if (g.rest != null) return;
+  if (qPlaying) qPauseAll();
+  const i = g.slot;
+  qEnsure(i, () => {
+    qVol(i, Q.slots[i].vol);
+    if (qLoaded[i] !== Q.slots[i].vid) qLoad(i, g.inP); else { qSeekP(i, g.inP); try { qp[i].playVideo(); } catch (e) {} }
+    qClipStop = { i, out: g.outP };
+  });
+}
+document.querySelectorAll('[data-qrest]').forEach(b => b.addEventListener('click', () => {
+  const lane = b.getAttribute('data-qrest');
+  Q.lanes[lane].push({ rest: 1 });
+  qSel = { lane, idx: Q.lanes[lane].length - 1 };
+  qSave(); qRenderLanes(); qRenderEdit();
+}));
+$('qClearAll').addEventListener('click', () => {
+  if (!confirmClear()) return;
+  qStop(true);
+  [0, 1, 2, 3].forEach(i => { try { if (qp[i] && qReady[i]) qp[i].stopVideo(); } catch (e) {} qLoaded[i] = null; });
+  Q = qBlank(); qSel = null; qSave();
+  qBuilt = false; qBuild(); qRenderLanes(); qRenderEdit();
+  log('QUADRO', 'cleared');
+});
+let qClearArmed = 0;
+function confirmClear() {
+  if (Date.now() - qClearArmed < 4000) { qClearArmed = 0; return true; }
+  qClearArmed = Date.now(); $('qClearAll').textContent = 'TAP AGAIN TO CLEAR';
+  setTimeout(() => { $('qClearAll').textContent = 'CLEAR ALL'; }, 4000);
+  return false;
+}
+
+/* ---------- the timeline engine ---------- */
+function qUsedSlots(lane) { return [...new Set(Q.lanes[lane].filter(g => g.rest == null).map(g => g.slot))]; }
+function qPlay() {
+  if (!qTotal()) { log('QUADRO', 'add a clip to a lane first'); return; }
+  qClipStop = null;
+  const t = qPaused >= qTotal() ? 0 : qPaused;
+  /* a tap lets every slot make sound later, so start each one silently now */
+  [0, 1, 2, 3].forEach(i => { if (!Q.slots[i].vid) return; qEnsure(i, () => { if (qLoaded[i] !== Q.slots[i].vid) qLoad(i, 0); try { qp[i].setVolume(0); qp[i].unMute(); qp[i].playVideo(); } catch (e) {} }); });
+  qWarm = { beat: -1, voice: -1 }; qCut = { beat: -1, voice: -1 }; qActive = { beat: -1, voice: -1 };
+  qT0 = performance.now() - t * 1000;
+  qPlaying = true;
+  qGrace = [0, 0, 0, 0];
+  qPaintPlay();
+}
+function qPauseAll() {
+  if (qPlaying) qPaused = qNowT();
+  qPlaying = false;
+  [0, 1, 2, 3].forEach(qPause);
+  qPaintPlay();
+}
+function qStop(silent) {
+  qPlaying = false; qPaused = 0; qClipStop = null;
+  [0, 1, 2, 3].forEach(qPause);
+  if (!silent) qPaintPlay();
+}
+function qSeekTimeline(t) {
+  t = Math.max(0, Math.min(qTotal(), t));
+  if (qPlaying) { qT0 = performance.now() - t * 1000; qWarm = { beat: -1, voice: -1 }; qCut = { beat: -1, voice: -1 }; qActive = { beat: -1, voice: -1 }; qGrace = [0, 0, 0, 0]; }
+  else qPaused = t;
+}
+function qPaintPlay() { $('qPlay').innerHTML = qPlaying ? ICON_PAUSE : ICON_PLAY; }
+$('qPlay').addEventListener('click', () => { if (qPlaying) qPauseAll(); else qPlay(); });
+$('qToStart').addEventListener('click', () => { qSeekTimeline(0); if (!qPlaying) qPlay(); });
+$('qLoop').checked = recall('qloop') === true;
+$('qLoop').addEventListener('change', () => store('qloop', $('qLoop').checked));
+(function () {
+  const bar = $('qBar');
+  bar.addEventListener('pointerdown', (e) => { if (!qTotal()) return; qDrag = { i: 'tl', t: barFrac(bar, e) * qTotal() }; try { bar.setPointerCapture(e.pointerId); } catch (err) {} });
+  bar.addEventListener('pointermove', (e) => { if (qDrag && qDrag.i === 'tl') qDrag.t = barFrac(bar, e) * qTotal(); });
+  bar.addEventListener('pointerup', (e) => { if (!qDrag || qDrag.i !== 'tl') return; qDrag = null; qSeekTimeline(barFrac(bar, e) * qTotal()); });
+  bar.addEventListener('pointercancel', () => { qDrag = null; });
+})();
+const Q_LEAD = 0.6;
+function qLaneTick(lane, t) {
+  const L = Q.lanes[lane];
+  const at = qLaneAt(lane, t);
+  const used = qUsedSlots(lane);
+  let want = -1, wantPos = 0;
+  if (at && at.g.rest == null) { want = at.g.slot; wantPos = at.g.inP + at.off; }
+  /* the next clip on another slot starts early and silent so its cut lands clean */
+  let next = null, nextStart = 0;
+  if (at) { nextStart = at.start + qSegDur(at.g); const n = L[at.i + 1]; if (n && n.rest == null) next = n; }
+  else if (t < 0.0001 && L[0] && L[0].rest == null) { next = L[0]; nextStart = 0; }
+  const nextIdx = at ? at.i + 1 : 0;
+  const toNext = nextStart - t;
+  const canWarm = next && next.slot !== want;
+  used.forEach(i => {
+    if (!qReady[i] || qLoaded[i] !== Q.slots[i].vid) return;
+    if (i === want) {
+      if (qActive[lane] !== at.i) {
+        qActive[lane] = at.i;
+        if (qCut[lane] !== at.i) { qSeekP(i, wantPos); }
+        qVol(i, Q.slots[i].vol);
+        try { if (qState[i] !== 1) qp[i].playVideo(); } catch (e) {}
+        return;
+      }
+      if (Date.now() > qGrace[i] && qState[i] === 1) {
+        const cur = qPos(i);
+        if (Math.abs(cur - wantPos) > 0.15) qSeekP(i, wantPos);
+      }
+      try { if (qState[i] !== 1 && qState[i] !== 3) qp[i].playVideo(); } catch (e) {}
+      return;
+    }
+    if (canWarm && i === next.slot && toNext <= Q_LEAD + 0.05) {
+      if (qWarm[lane] !== nextIdx) {
+        qWarm[lane] = nextIdx;
+        qVol(i, 0);
+        qSeekP(i, Math.max(0, next.inP - toNext));
+        try { qp[i].playVideo(); } catch (e) {}
+      }
+      return;
+    }
+    if (qState[i] === 1 || qState[i] === 3) { qVol(i, 0); qPause(i); }
+  });
+  /* the cut itself, timed to the millisecond rather than the next tick */
+  if (next && toNext > 0 && toNext < 0.12 && qCut[lane] !== nextIdx) {
+    qCut[lane] = nextIdx;
+    const from = want, to = next.slot, idx = nextIdx;
+    setTimeout(() => {
+      if (!qPlaying) return;
+      if (to !== from && qWarm[lane] === idx) { qVol(to, Q.slots[to].vol); try { if (qState[to] !== 1) qp[to].playVideo(); } catch (e) {} }
+      else { qSeekP(to, next.inP); qVol(to, Q.slots[to].vol); try { qp[to].playVideo(); } catch (e) {} }
+      qActive[lane] = idx;
+      if (from >= 0 && from !== to) { qVol(from, 0); setTimeout(() => qPause(from), 120); }
+    }, Math.max(0, toNext * 1000));
+  }
+  return at;
+}
+function qTick() {
+  if (mode !== 'quadro') return;
+  const tot = qTotal();
+  let t = qNowT();
+  if (qPlaying && t >= tot) {
+    if ($('qLoop').checked && tot > 0.5) { qSeekTimeline(0); t = 0; }
+    else { qStop(); t = 0; }
+  }
+  let atB = null, atV = null;
+  if (qPlaying) { atB = qLaneTick('beat', t); atV = qLaneTick('voice', t); }
+  if (qClipStop && qPos(qClipStop.i) >= qClipStop.out) { qPause(qClipStop.i); qClipStop = null; }
+  /* timeline readout */
+  const shown = qDrag && qDrag.i === 'tl' ? qDrag.t : t;
+  $('qFill').style.width = tot ? Math.min(100, shown / tot * 100) + '%' : '0%';
+  $('qTime').textContent = f2(shown) + ' / ' + fmt(tot);
+  $('qTag').textContent = !tot ? 'EMPTY' : qPlaying ? 'PLAYING' : 'READY';
+  if (qPlaying) {
+    const desc = (at, lane) => !at ? lane + ' done' : at.g.rest != null ? lane + ' resting' : Q_LABELS[at.g.slot] + ' at ' + f2(at.g.inP + at.off);
+    let line = '';
+    if (atV && atV.g.rest == null) { const sl = Q.slots[atV.g.slot]; const l = sl.lines ? lineAt(sl.lines, atV.g.inP + atV.off) : null; if (l && l.text) line = '<br><span style="color:var(--lcd-ink)">' + esc(l.text) + '</span>'; }
+    $('qNow').innerHTML = esc(desc(atB, 'beat')) + ' / ' + esc(desc(atV, 'voice')) + line;
+  } else $('qNow').textContent = tot ? 'Press play to hear the arrangement' : 'Load the slots below, mark clips, and add them to the lanes';
+  /* slot bars */
+  [0, 1, 2, 3].forEach(i => {
+    if (!$('qSf' + i)) return;
+    const d = qDur(i), p = qDrag && qDrag.i === i ? qDrag.t : qPos(i);
+    $('qSf' + i).style.width = d ? Math.min(100, p / d * 100) + '%' : '0%';
+    $('qSt2' + i).textContent = f2(p) + (d ? ' / ' + fmt(d) : '');
+    $('qSt' + i).textContent = !Q.slots[i].vid ? 'EMPTY' : qState[i] === 1 ? 'PLAYING' : qState[i] === 3 ? 'LOADING' : 'READY';
+    $('qPP' + i).innerHTML = '<svg viewBox="0 0 24 24">' + (qState[i] === 1 ? '<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>' : '<path d="M7 5v14l12-7z"/>') + '</svg>';
+  });
+  if (qPlaying && Math.floor(t * 4) !== qTick.last) { qTick.last = Math.floor(t * 4); qRenderLanes(); }
+}
+setInterval(qTick, 40);
+function qEnter() {
+  qBuild();
+  [0, 1, 2, 3].forEach(i => { if (Q.slots[i].vid) qLoad(i); qPaintSlot(i); });
+  qRenderLanes(); qRenderEdit(); qPaintPlay();
+}
 
 /* ===== LIVE KARAOKE MODE ===== */
 let stream = null, busy = false, karaokeTimer = null, live = null, knMs = 0;
@@ -3596,7 +4073,7 @@ setInterval(() => {
 }, 1000);
 
 /* main loop */
-setInterval(() => { if (isSmashy()) smashTick(); else if (mode === 'karaoke') karaokeTick(); else liveTick(); }, 100);
+setInterval(() => { if (isSmashy()) smashTick(); else if (mode === 'karaoke') karaokeTick(); else if (mode === 'live') liveTick(); }, 100);
 
 /* split screen: instrumental on the left, acapella on the right; tap either picture to play or pause it, tap again while muted to bring the sound back */
 const ICON_MUTED = '<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.6 3l2.7-2.7-1.4-1.4-2.7 2.7-2.7-2.7-1.4 1.4 2.7 2.7-2.7 2.7 1.4 1.4 2.7-2.7 2.7 2.7 1.4-1.4z"/></svg>';
