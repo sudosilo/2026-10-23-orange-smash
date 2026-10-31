@@ -1,5 +1,7 @@
 Smash Director changelog
 
+2026-10-30, v2026.10.30. Added Send to Smash Bender, which posts the instrumental and acapella to the processing server from Smash and from saved samples. Sends go through the phone relay, and songs are named by artist and song. Both clips now start lined up at the drop or the sample. The samples list shows song names on their own line with the buttons wrapped below.
+
 2026-10-29, v2026.10.29. Added quadro smash with two beats and two vocals, and a swap button that trades the roles of the two songs. Typing a tempo now searches saved songs. Track bars are seekable, and the layout stays inside the screen.
 
 2026-10-26, v2026.10.26. Added a split screen with an instrumental and a vocal side, each with its own controls.

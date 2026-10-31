@@ -6,6 +6,6 @@ It finds the vocal only version of a song and plays it locked to the beat of ano
 
 Live at 2026-10-23-orange-smash.vercel.app
 
-Latest change. 2026-10-29, v2026.10.29. Added quadro smash with two beats and two vocals, and a swap button that trades the roles of the two songs. Typing a tempo now searches saved songs. Track bars are seekable, and the layout stays inside the screen.
+Latest change. 2026-10-30, v2026.10.30. Added Send to Smash Bender, which posts the instrumental and acapella to the processing server from Smash and from saved samples. Sends go through the phone relay, and songs are named by artist and song. Both clips now start lined up at the drop or the sample. The samples list shows song names on their own line with the buttons wrapped below.
 
 The full history is in CHANGELOG.md.
